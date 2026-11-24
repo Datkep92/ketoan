@@ -91,7 +91,9 @@
       if (!saved) { ctx.foot('Dữ liệu đang ở chế độ chỉ đọc, chưa lưu được danh mục.'); return; }
       e.currentTarget.reset();
       patch(ctx, section, current, false);
-      if (type === 'accounts') ctx.sync('chungtu');
+      if (type === 'accounts') { ctx.sync('chungtu'); ctx.sync('cashbank'); }
+      if (type === 'suppliers') ctx.sync('muahang');
+      if (type === 'items') { ctx.sync('tonkho'); ctx.sync('banhang'); ctx.sync('muahang'); }
     });
   }
 

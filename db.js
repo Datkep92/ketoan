@@ -286,6 +286,7 @@
     memory: backend.__memory === true,
     warning: warning,
     readOnly: readOnly,
+    isReadOnly: function () { return readOnly; },
     list: list,
     node: node,
     meta: meta,

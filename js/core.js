@@ -84,6 +84,46 @@
     return value && value.stock && typeof value.stock === 'object' && !Array.isArray(value.stock) ? value.stock : {};
   }
 
+  // Cầu nối dùng chung cho các thao tác chạm nhiều nhánh: kiểm chỉ đọc một lần,
+  // sau đó lưu từng nhánh. Module mới chỉ cần khai báo dữ liệu cần ghi.
+  function isReadOnly() { return !!(DB && DB.isReadOnly && DB.isReadOnly()); }
+  function branch(key, modName) {
+    var mod = modules[modName];
+    return mod ? data(key, mod) : {};
+  }
+  function nhaCungCap(key) { return listFrom(key, 'danhmuc', 'suppliers'); }
+  function chungTu(key) { return listFrom(key, 'chungtu', 'vouchers'); }
+  function congNo(key) { return listFrom(key, 'congno', 'records'); }
+  function donMua(key) { return listFrom(key, 'muahang', 'purchases'); }
+  function hoaDonVao(key) { return listFrom(key, 'muahang', 'bills'); }
+  function hoaDon(key) { return listFrom(key, 'hoadon', 'invoices'); }
+  function phieuQuy(key) { return listFrom(key, 'cashbank', 'entries'); }
+  function taiSan(key) { return listFrom(key, 'taisan', 'assets'); }
+  function roundMoney(n) { return Math.round((Number(n) || 0) * 100) / 100; }
+  function nextCode(list, prefix, width) {
+    var nums = (list || []).map(function (row) {
+      var m = /-(\d+)$/.exec(String(row.ma || row.so || ''));
+      return m ? Number(m[1]) : 0;
+    });
+    var n = Math.max.apply(Math, [0].concat(nums)) + 1;
+    return prefix + '-' + String(n).padStart(width || 4, '0');
+  }
+  function commit(key, writes, ctx, okText) {
+    if (isReadOnly()) {
+      if (ctx && ctx.foot) ctx.foot('Dữ liệu đang ở chế độ chỉ đọc, thay đổi chưa được lưu.');
+      return false;
+    }
+    for (var i = 0; i < writes.length; i++) {
+      var mod = modules[writes[i].module];
+      if (!mod || !save(key, mod, writes[i].value)) {
+        if (ctx && ctx.foot) ctx.foot('Dữ liệu đang ở chế độ chỉ đọc, thay đổi chưa được lưu.');
+        return false;
+      }
+    }
+    if (ctx && ctx.foot && okText) ctx.foot(okText);
+    return true;
+  }
+
   global.Ketoan = {
     register: register,
     modules: modules,
@@ -101,7 +141,20 @@
       hangHoa: hangHoa,
       khachHang: khachHang,
       donBan: donBan,
-      tonKho: tonKho
+      tonKho: tonKho,
+      isReadOnly: isReadOnly,
+      branch: branch,
+      nhaCungCap: nhaCungCap,
+      chungTu: chungTu,
+      congNo: congNo,
+      donMua: donMua,
+      hoaDonVao: hoaDonVao,
+      hoaDon: hoaDon,
+      phieuQuy: phieuQuy,
+      taiSan: taiSan,
+      roundMoney: roundMoney,
+      nextCode: nextCode,
+      commit: commit
     }
   };
 })(typeof window !== 'undefined' ? window : this);

@@ -126,6 +126,9 @@ function boot(seed) {
     'js/modules/tonkho.js',
     'js/modules/banhang.js',
     'js/modules/hoadon.js',
+    'js/modules/muahang.js',
+    'js/modules/cashbank.js',
+    'js/modules/taisan.js',
     'app.js'
   ];
   sources.forEach(name => {
@@ -220,10 +223,11 @@ function sectionOf(pane, name) { return pane.querySelectorAll('.module-section')
 function tabOf(pane, name) { return pane.querySelectorAll('.module-tab').filter(t => t.dataset.tab === name)[0]; }
 
 assert(paneA.querySelectorAll('.module-tab').map(t => t.dataset.tab).join(',') ===
-  'chungtu,danhmuc,congno,baocao,caidat,tonkho,banhang,hoadon', 'khung có đủ tám phần');
-assert(Object.keys(box.Ketoan.modules).length === 8, 'tám module cùng đăng ký vào một nơi');
+  'chungtu,danhmuc,congno,baocao,caidat,tonkho,banhang,hoadon,muahang,cashbank,taisan', 'khung có đủ mười một phần');
+assert(Object.keys(box.Ketoan.modules).length === 11, 'mười một module cùng đăng ký vào một nơi');
 const branchesA = DB.snapshot().nodes['0100000001'].branches;
-assert(['chungtu', 'danhmuc', 'congno', 'baocao', 'caidat', 'tonkho', 'banhang', 'hoadon'].every(n => !!branchesA[n]),
+assert(['chungtu', 'danhmuc', 'congno', 'baocao', 'caidat', 'tonkho', 'banhang', 'hoadon',
+  'muahang', 'cashbank', 'taisan'].every(n => !!branchesA[n]),
   'mỗi công ty có đủ nhánh dữ liệu riêng cho các phần');
 assert(counter(box, 'counter-full') === 'Render toàn bộ: 3', 'thêm module không render lại pane cũ');
 
@@ -336,10 +340,86 @@ hdForm.fire('submit');
 assert(branchOf('hoadon').invoices.length === 1, 'trùng số hóa đơn -> không lưu thêm');
 assert(ids['side-foot'].textContent.indexOf('đã có') >= 0, 'trùng số hóa đơn -> có thông báo');
 
+// ---------- Mua hàng, quỹ, tài sản và trả hàng ----------
+fill(dmForm, { type: 'suppliers', code: '', name: 'NCC A', extra: '', price: '' });
+dmForm.fire('submit');
+const supplierId = branchOf('danhmuc').suppliers[0].id;
+
+tabOf(paneA, 'muahang').fire('click');
+const mhSec = sectionOf(paneA, 'muahang');
+const mhForm = mhSec.querySelector('.mh-form');
+fill(mhForm, { date: '2026-11-25', supplier: supplierId, item: itemId, qty: '3', price: '100000', tax: '10', paid: '110000', note: 'Nhập hàng' });
+mhForm.fire('submit');
+assert(branchOf('muahang').purchases.length === 1, 'mua hàng -> lưu đúng một phiếu mua');
+assert(stockOf()[itemId] === 18, 'mua hàng -> cộng đúng tồn kho');
+assert(mhSec.querySelector('[data-mh="amount"]').textContent.replace(/\D/g, '') === '330000',
+  'mua hàng -> tổng tiền gồm thuế cập nhật');
+assert(branchOf('chungtu').vouchers.length === 3 && branchOf('chungtu').vouchers[2].amount === 110000,
+  'mua hàng -> tiền đã trả thành chứng từ chi');
+assert(branchOf('congno').records.length === 3 && branchOf('congno').records[2].type === 'phaiTra' &&
+  branchOf('congno').records[2].amount === 220000, 'mua hàng -> phần chưa trả thành khoản phải trả');
+
+const mhBillForm = mhSec.querySelector('.mh-bill-form');
+fill(mhBillForm, { purchase: '', so: 'HH/26-001', date: '2026-11-25', supplier: 'NCC A', amount: '200000', tax: '10', paid: '50000', note: '' });
+mhBillForm.fire('submit');
+assert(branchOf('muahang').bills.length === 1 && branchOf('muahang').bills[0].so === 'HH/26-001',
+  'hóa đơn đầu vào -> số hóa đơn lưu đúng');
+assert(branchOf('muahang').bills[0].total === 220000, 'hóa đơn đầu vào -> tính đúng tiền thuế');
+fill(mhBillForm, { purchase: '', so: 'HH/26-001', date: '2026-11-25', supplier: 'NCC A', amount: '100000', tax: '0', paid: '0', note: '' });
+mhBillForm.fire('submit');
+assert(branchOf('muahang').bills.length === 1 && ids['side-foot'].textContent.indexOf('đã có') >= 0,
+  'hóa đơn đầu vào -> trùng số bị từ chối');
+
+tabOf(paneA, 'cashbank').fire('click');
+const cbSec = sectionOf(paneA, 'cashbank');
+const cbForm = cbSec.querySelector('.cb-form');
+fill(cbForm, { date: '2026-11-26', type: 'in', account: '111', amount: '500000', note: 'Thu vốn' });
+cbForm.fire('submit');
+assert(branchOf('cashbank').entries.length === 1, 'quỹ -> lưu đúng một phiếu thu');
+assert(cbSec.querySelector('[data-cb="balance"]').textContent.replace(/\D/g, '') === '500000',
+  'quỹ -> số dư tính đúng');
+assert(branchOf('chungtu').vouchers.length === 4, 'quỹ -> đồng thời ghi chứng từ');
+assert(bcSec.querySelector('[data-report="cash"]').textContent.replace(/\D/g, '') === '1690000',
+  'báo cáo -> tiền còn cập nhật theo phiếu quỹ');
+
+tabOf(paneA, 'taisan').fire('click');
+const tsSec = sectionOf(paneA, 'taisan');
+const tsForm = tsSec.querySelector('.ts-form');
+fill(tsForm, { name: 'Máy tính', date: '2026-11-01', cost: '1200000', years: '2', note: '' });
+tsForm.fire('submit');
+assert(branchOf('taisan').assets.length === 1, 'tài sản -> thêm đúng một tài sản');
+const assetId = branchOf('taisan').assets[0].id;
+fill(tsSec.querySelector('.ts-dep-form'), { asset: assetId, date: '2026-11-30', months: '1' });
+tsSec.querySelector('.ts-dep-form').fire('submit');
+assert(branchOf('taisan').assets[0].accumulated === 50000, 'khấu hao -> tính đúng một tháng');
+assert(tsSec.querySelector('[data-ts="left"]').textContent.replace(/\D/g, '') === '1150000',
+  'tài sản -> giá trị còn lại đúng');
+assert(bcSec.querySelector('[data-report="khauHao"]').textContent.replace(/\D/g, '') === '50000',
+  'báo cáo -> khấu hao cập nhật');
+assert(bcSec.querySelector('[data-report="taiSan"]').textContent.replace(/\D/g, '') === '1200000',
+  'báo cáo -> nguyên giá tài sản cập nhật');
+assert(bcSec.querySelector('[data-report="muaHang"]').textContent.replace(/\D/g, '') === '330000',
+  'báo cáo -> tổng mua hàng cập nhật');
+assert(bcSec.querySelector('[data-report="hoaDonVao"]').textContent.replace(/\D/g, '') === '220000',
+  'báo cáo -> tổng hóa đơn đầu vào cập nhật');
+
+tabOf(paneA, 'banhang').fire('click');
+const returnForm = bhSec.querySelector('.bh-return-form');
+fill(returnForm, { order: branchOf('banhang').orders[0].id, date: '2026-11-27', qty: '2', note: 'Hàng lỗi' });
+returnForm.fire('submit');
+assert(branchOf('banhang').orders[0].returnedQty === 2, 'trả hàng -> ghi đúng số lượng trả');
+assert(stockOf()[itemId] === 20, 'trả hàng -> hoàn nhập tồn kho');
+assert(bhSec.querySelector('[data-bh="revenue"]').textContent.replace(/\D/g, '') === '400000',
+  'trả hàng -> doanh thu bán giảm đúng');
+assert(branchOf('congno').records[1].amount === 200000,
+  'trả hàng -> phần đã hoàn tiền không làm giảm công nợ');
+assert(bcSec.querySelector('[data-report="banHang"]').textContent.replace(/\D/g, '') === '400000',
+  'báo cáo -> doanh thu bán hàng đã trừ hàng trả');
+
 ids['tenant-list'].querySelector('[data-id="0200000002"]').fire('click');
 assert(sectionOf(panes(box)[1], 'tonkho').querySelector('[data-kho="qty"]').textContent === '0',
   'công ty B -> kho riêng, không lẫn dữ liệu của A');
 ids['tenant-list'].querySelector('[data-id="0100000001"]').fire('click');
-assert(stockOf()[itemId] === 15 && branchOf('banhang').orders.length === 1 && branchOf('hoadon').invoices.length === 1,
+assert(stockOf()[itemId] === 20 && branchOf('banhang').orders.length === 1 && branchOf('hoadon').invoices.length === 1,
   'quay lại công ty A -> kho, bán hàng, hóa đơn vẫn đúng');
 assert(counter(box, 'counter-full') === 'Render toàn bộ: 3', 'thêm ba phần -> KHÔNG render lại pane cũ');

@@ -31,3 +31,10 @@
 - Kiểm chứng bằng lệnh: kiểm cú pháp toàn bộ tệp sạch; `node Scripts/check-logic.js` — 74/74 PASS (47 ca cũ giữ nguyên, thêm 27 ca mới).
 - Kiểm chứng máy chủ: cổng 8899 trả HTTP 200 cho toàn bộ tệp giao diện, gồm ba phần mới.
 - Chưa kiểm chứng bằng mắt trên trình duyệt thiết bị: chưa mở giao diện thật. Có thể tự mở `http://127.0.0.1:8899/index.html`, tạo công ty, vào Kho thêm hàng, vào Bán hàng lập phiếu, vào Hóa đơn phát hành, rồi xem Báo cáo và thử chuyển công ty qua lại.
+
+## 2026-11-24 (mua hàng, quỹ, tài sản)
+- Nhiệm vụ mới: tiếp tục lấp các phần còn thiếu là mua hàng, quỹ / ngân hàng, tài sản; đồng thời bổ sung chiết khấu và trả hàng cho bán hàng.
+- Đã xong: mười một phần cùng chạy trên một kho dữ liệu, mỗi phần một nhánh riêng theo từng mã số thuế. Mua hàng cộng tồn, ghi chứng từ chi và khoản phải trả, có hóa đơn đầu vào tự đánh số và chặn trùng số; quỹ ghi phiếu thu/chi và số dư; tài sản tính khấu hao đường thẳng, không vượt giá trị còn lại. Bán hàng có chiết khấu, trả hàng hoàn tồn/hoàn tiền và giảm đúng phần công nợ chưa thu. Báo cáo cộng thêm tổng mua, hóa đơn đầu vào, nguyên giá, khấu hao và doanh thu đã trừ hàng trả.
+- Kiểm chứng bằng lệnh: kiểm cú pháp toàn bộ tệp sạch; `node Scripts/check-logic.js` — 98/98 PASS (74 ca cũ giữ nguyên, thêm 24 ca mới).
+- Kiểm chứng máy chủ: cổng 8899 trả HTTP 200 cho toàn bộ tệp giao diện, gồm ba phần mới.
+- Chưa kiểm chứng bằng mắt trên trình duyệt thiết bị: chưa mở giao diện thật. Có thể tự mở `http://127.0.0.1:8899/index.html`, tạo công ty, thử Mua hàng → Quỹ → Tài sản → Báo cáo, rồi vào Bán hàng thử trả hàng và xem lại tồn kho.

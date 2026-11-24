@@ -142,10 +142,16 @@ body {
 .module-tab.active { color: var(--brand); border-bottom-color: var(--brand); }
 .module-section { width: 100%; }
 .module-card .stats { margin-top: 0; }
+.module-card table { width: 100%; border-collapse: collapse; }
+.module-card th, .module-card td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); }
+.module-card th { font-size: 11px; text-transform: uppercase; color: var(--muted); letter-spacing: .4px; }
 
-.dm-form, .cn-form, .setup-form, .kho-form, .kho-adjust, .bh-form, .hd-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-bottom: 14px; }
+.dm-form, .cn-form, .setup-form, .kho-form, .kho-adjust, .bh-form, .hd-form,
+.mh-form, .mh-bill-form, .cb-form, .ts-form, .ts-dep-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-bottom: 14px; }
 .dm-form input, .dm-form select, .cn-form input, .cn-form select, .setup-form input, .import-text,
-.kho-form input, .kho-adjust input, .kho-adjust select, .bh-form input, .bh-form select, .hd-form input, .hd-form select {
+.kho-form input, .kho-adjust input, .kho-adjust select, .bh-form input, .bh-form select, .hd-form input, .hd-form select,
+.mh-form input, .mh-form select, .mh-bill-form input, .mh-bill-form select,
+.cb-form input, .cb-form select, .ts-form input, .ts-dep-form input, .ts-dep-form select {
   width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: inherit; background: #fff;
 }
 .setup-form label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }
