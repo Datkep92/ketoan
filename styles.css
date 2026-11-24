@@ -87,6 +87,7 @@ body {
 .tenant-item .dot.hkd { background: var(--ok); }
 .tenant-item .tname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tenant-item small { font-size: 10px; color: var(--muted); }
+.tenant-item .mst { flex: 0 0 auto; max-width: 92px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .side-foot { margin-top: auto; font-size: 11px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 10px; }
 

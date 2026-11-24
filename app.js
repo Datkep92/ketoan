@@ -1,42 +1,24 @@
 (function () {
   'use strict';
 
-  var NS = 'ketoan.v1';
-  var K_TENANTS = NS + ':tenants';
-  var K_META = function (id) { return NS + ':tenant:' + id + ':meta'; };
-  var K_DATA = function (id) { return NS + ':tenant:' + id + ':data'; };
-
-  // Nếu trình duyệt chặn localStorage (chế độ riêng tư / file://), dùng bộ nhớ phiên và báo cho người dùng.
-  var backend = (function () {
-    try {
-      var probe = '__ketoan_probe__';
-      localStorage.setItem(probe, '1');
-      localStorage.removeItem(probe);
-      return localStorage;
-    } catch (e) {
-      var mem = {};
-      return {
-        __memory: true,
-        getItem: function (k) { return Object.prototype.hasOwnProperty.call(mem, k) ? mem[k] : null; },
-        setItem: function (k, v) { mem[k] = String(v); },
-        removeItem: function (k) { delete mem[k]; }
-      };
-    }
-  })();
-
-  function readJSON(key, fallback) {
-    var raw = backend.getItem(key);
-    if (raw === null || raw === '') return fallback;
-    try { return JSON.parse(raw); } catch (e) { return fallback; }
+  var DB = window.KetoanDB;
+  if (!DB) {
+    document.getElementById('side-foot').textContent = 'Không nạp được kho dữ liệu';
+    return;
   }
-  function writeJSON(key, value) { backend.setItem(key, JSON.stringify(value)); }
-  function sig(value) { try { return JSON.stringify(value); } catch (e) { return String(value); } }
+
+  function nodeKey(meta) {
+    if (!meta) return '';
+    return String(meta.key || meta.mst || meta.id || '').toUpperCase();
+  }
   function uid(prefix) { return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  function sig(value) { try { return JSON.stringify(value); } catch (e) { return String(value); } }
   function money(n) { return new Intl.NumberFormat('vi-VN').format(Number(n) || 0) + ' đ'; }
   function today() {
     var d = new Date();
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
+  function foot(text) { document.getElementById('side-foot').textContent = text; }
 
   var DEFAULT_ACCOUNTS = [
     { code: '111', name: 'Tiền mặt' },
@@ -48,9 +30,9 @@
   function newData() { return { rev: 0, vouchers: [], accounts: DEFAULT_ACCOUNTS.slice() }; }
 
   var state = {
-    tenants: [],
-    activeId: null,
-    panes: {},                       // id -> pane DOM được cache lại, mỗi công ty một pane riêng
+    tenants: DB.list(),                  // mỗi phần tử là meta của một nhánh MST trong kho chung
+    activeId: null,                      // chính là khóa nhánh MST
+    panes: {},                           // key -> pane DOM được cache lại
     counters: { full: 0, patch: 0 }
   };
 
@@ -62,9 +44,8 @@
   var counterFull = document.getElementById('counter-full');
   var counterPatch = document.getElementById('counter-patch');
 
-  if (backend.__memory) {
-    document.getElementById('side-foot').textContent = 'Trình duyệt chặn lưu cục bộ — dữ liệu chỉ tồn tại đến khi đóng trang';
-  }
+  if (DB.memory) foot('Trình duyệt chặn lưu cục bộ — dữ liệu chỉ tồn tại đến khi đóng trang');
+  else if (DB.warning) foot(DB.warning);
 
   function updateCounters() {
     counterFull.textContent = 'Render toàn bộ: ' + state.counters.full;
@@ -77,7 +58,7 @@
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'tenant-item';
-    btn.dataset.id = meta.id;
+    btn.dataset.id = nodeKey(meta);
 
     var dot = document.createElement('span');
     dot.className = 'dot' + (meta.type === 'hkd' ? ' hkd' : '');
@@ -86,11 +67,15 @@
     name.textContent = meta.name;
     var kind = document.createElement('small');
     kind.textContent = meta.type === 'hkd' ? 'HKD' : 'CTY';
+    var mst = document.createElement('small');
+    mst.className = 'mst';
+    mst.textContent = meta.mst ? 'MST ' + meta.mst : 'Chưa có MST';
 
     btn.appendChild(dot);
     btn.appendChild(name);
     btn.appendChild(kind);
-    btn.addEventListener('click', function () { openTenant(meta.id); });
+    btn.appendChild(mst);
+    btn.addEventListener('click', function () { openTenant(nodeKey(meta)); });
     return btn;
   }
 
@@ -107,29 +92,31 @@
     empty.hidden = state.tenants.length > 0;
   }
 
-  // ---------- Tạo công ty ----------
-  function createTenant(name, type) {
-    var now = new Date().toISOString();
-    var meta = { id: uid('t'), name: name, type: type, createdAt: now, updatedAt: now };
-    writeJSON(K_META(meta.id), meta);
-    writeJSON(K_DATA(meta.id), newData());
-    state.tenants.push(meta);
-    writeJSON(K_TENANTS, state.tenants);
-    return meta;
+  // ---------- Tạo công ty: mỗi MST là một nhánh trong kho chung ----------
+  function createTenant(name, type, mst) {
+    var result = DB.create(mst, name, type);
+    if (!result || result.error === 'exists') {
+      foot('Mã số thuế này đã có. Hãy nhập mã khác hoặc mở nhánh hiện có.');
+      return null;
+    }
+    if (result.generated) foot('Chưa có mã số thuế — đã tự tạo một nhánh riêng cho công ty này.');
+    else foot('Dữ liệu lưu trên thiết bị');
+    return result.meta;
   }
 
   // ---------- Pane riêng cho từng công ty ----------
   function accountOptions(accounts) {
-    return accounts.map(function (a) {
+    return (accounts || []).map(function (a) {
       return '<option value="' + a.code + '">' + a.code + ' — ' + a.name + '</option>';
     }).join('');
   }
 
   function createPane(meta, data) {
+    var key = nodeKey(meta);
     var root = document.createElement('section');
     root.className = 'tenant-pane';
-    root.id = 'pane-' + meta.id;
-    root.dataset.id = meta.id;
+    root.id = 'pane-' + key;
+    root.dataset.id = key;
     root.innerHTML =
       '<div class="pane-head">' +
         '<div><h2 class="pane-title"></h2><p class="pane-sub"></p></div>' +
@@ -155,7 +142,7 @@
       '</div>';
     workspace.appendChild(root);
 
-    var pane = { id: meta.id, root: root, sigs: {} };
+    var pane = { key: key, root: root, sigs: {} };
 
     var form = root.querySelector('.voucher-form');
     form.elements['date'].value = today();
@@ -172,11 +159,11 @@
       };
       if (!voucher.note || !voucher.date || !(voucher.amount > 0)) return;
 
-      // Đọc lại từ nơi lưu, ghi rồi chỉ vá hai phần thay đổi.
-      var current = readJSON(K_DATA(pane.id), newData());
+      // Đọc đúng nhánh MST, ghi lại nhánh chứng từ rồi chỉ vá hai phần thay đổi.
+      var current = DB.branch(pane.key, 'chungtu', newData());
       current.rev = (current.rev || 0) + 1;
       current.vouchers.push(voucher);
-      writeJSON(K_DATA(pane.id), current);
+      DB.saveBranch(pane.key, 'chungtu', current);
 
       e.currentTarget.reset();
       form.elements['date'].value = today();
@@ -186,16 +173,14 @@
     });
 
     root.querySelector('.btn-rename').addEventListener('click', function () {
-      var currentMeta = readJSON(K_META(pane.id), null);
+      var currentMeta = DB.meta(pane.key);
       if (!currentMeta) return;
       var next = window.prompt('Tên mới', currentMeta.name);
       if (next === null || !next.trim()) return;
-      currentMeta.name = next.trim();
-      currentMeta.updatedAt = new Date().toISOString();
-      writeJSON(K_META(pane.id), currentMeta);
-      state.tenants.forEach(function (t, i) { if (t.id === pane.id) state.tenants[i] = currentMeta; });
-      writeJSON(K_TENANTS, state.tenants);
-      patchMeta(pane, currentMeta);
+      var saved = DB.rename(pane.key, next.trim());
+      if (!saved) return;
+      state.tenants.forEach(function (t, i) { if (nodeKey(t) === pane.key) state.tenants[i] = saved; });
+      patchMeta(pane, saved);
     });
 
     // Lần đầu tạo pane: render đầy đủ một lần, các lần sau chỉ patch.
@@ -214,8 +199,8 @@
     pane.sigs.meta = s;
     pane.root.querySelector('.pane-title').textContent = meta.name;
     pane.root.querySelector('.pane-sub').textContent =
-      (meta.type === 'hkd' ? 'Hộ kinh doanh' : 'Công ty') + ' · id: ' + meta.id;
-    var label = list.querySelector('[data-id="' + meta.id + '"] .tname');
+      (meta.type === 'hkd' ? 'Hộ kinh doanh' : 'Công ty') + ' · MST: ' + (meta.mst || 'chưa có');
+    var label = list.querySelector('[data-id="' + nodeKey(meta) + '"] .tname');
     if (label) label.textContent = meta.name;
     if (!initial) bumpPatch();
   }
@@ -274,8 +259,9 @@
   // ---------- Chuyển công ty: tái dùng pane có sẵn ----------
   function openTenant(id) {
     if (state.activeId === id) return;
-    var meta = readJSON(K_META(id), null);
-    if (!meta) return;
+    var rec = DB.node(id);
+    if (!rec) return;
+    var meta = rec.meta;
 
     var oldBtn = list.querySelector('.tenant-item.active');
     if (oldBtn) oldBtn.classList.remove('active');
@@ -288,15 +274,16 @@
       Object.keys(state.panes).forEach(function (k) { state.panes[k].root.hidden = (k !== id); });
       pane.root.hidden = false;
     } else {
-      pane = createPane(meta, readJSON(K_DATA(id), newData()));
+      pane = createPane(meta, DB.branch(id, 'chungtu', newData()));
       state.panes[id] = pane;
     }
 
-    crumb.textContent = meta.name + ' · ' + (meta.type === 'hkd' ? 'Hộ kinh doanh' : 'Công ty');
+    crumb.textContent = meta.name + ' · ' + (meta.type === 'hkd' ? 'Hộ kinh doanh' : 'Công ty') +
+      ' · ' + (meta.mst || 'chưa có MST');
 
-    // Mỗi lần click đều đọc lại từ nơi lưu, rồi vá metadata và dữ liệu của đúng công ty này.
-    patchMeta(pane, readJSON(K_META(id), meta));
-    var data = readJSON(K_DATA(id), newData());
+    // Mỗi lần click đều đọc lại đúng nhánh MST, rồi vá metadata và dữ liệu.
+    patchMeta(pane, DB.meta(id));
+    var data = DB.branch(id, 'chungtu', newData());
     patchStats(pane, data);
     patchVouchers(pane, data);
   }
@@ -315,18 +302,19 @@
     e.preventDefault();
     var name = document.getElementById('new-name').value.trim();
     if (!name) return;
-    var meta = createTenant(name, document.getElementById('new-type').value);
+    var mst = document.getElementById('new-mst').value.trim();
+    var meta = createTenant(name, document.getElementById('new-type').value, mst);
+    if (!meta) return;
     formNew.hidden = true;
     formNew.reset();
     appendTenantButton(meta);
     crumb.textContent = '';
-    openTenant(meta.id);
+    openTenant(nodeKey(meta));
   });
 
   // ---------- Khởi động ----------
-  state.tenants = readJSON(K_TENANTS, []);
-  if (!Array.isArray(state.tenants)) state.tenants = [];
+  state.tenants = DB.list();
   renderSidebar();
   updateCounters();
-  if (state.tenants.length) openTenant(state.tenants[0].id);
+  if (state.tenants.length) openTenant(nodeKey(state.tenants[0]));
 })();
