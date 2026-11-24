@@ -1,4 +1,4 @@
-// Công nợ phải thu / phải trả: theo dõi ai nợ mình và mình nợ ai.
+// Công nợ phải thu / phải trả và dự phòng công nợ.
 (function (global) {
   'use strict';
   var K = global.Ketoan;
@@ -6,7 +6,7 @@
   var H = K.helpers;
 
   function defaults() {
-    return { records: [], updatedAt: '' };
+    return { records: [], provisions: [], updatedAt: '' };
   }
 
   function mount() {
@@ -25,10 +25,22 @@
         '<div><label>Phải trả</label><b data-cn="tra">0 đ</b></div>' +
         '<div><label>Còn thu</label><b data-cn="conThu">0 đ</b></div>' +
         '<div><label>Còn trả</label><b data-cn="conTra">0 đ</b></div>' +
+        '<div><label>Dự phòng</label><b data-cn="provision">0 đ</b></div>' +
       '</div>' +
       '<table class="cn-table"><thead><tr><th>Loại</th><th>Đối tượng</th><th>Phát sinh</th><th>Đã trả</th><th>Còn lại</th><th>Hạn</th><th>Chứng từ</th></tr></thead>' +
-        '<tbody></tbody></table>' +
+        '<tbody data-cn-body="records"></tbody></table>' +
       '<p class="muted">Vào phần Chứng từ, chọn khoản công nợ khi thêm phiếu thu/chi để tự cập nhật số đã thu/trả. Các khoản đã nối hiện ở cột cuối.</p>' +
+    '</div>' +
+    '<div class="card module-card">' +
+      '<h3>Dự phòng công nợ</h3>' +
+      '<form class="cn-provision-form">' +
+        '<input name="ky" type="month" required>' +
+        '<input name="amount" type="number" min="0" step="1000" placeholder="Số dự phòng">' +
+        '<input name="note" placeholder="Diễn giải" maxlength="120">' +
+        '<button class="btn primary" type="submit">Trích dự phòng</button>' +
+      '</form>' +
+      '<table class="cn-provision-table"><thead><tr><th>Kỳ</th><th>Số tiền</th><th>Diễn giải</th></tr></thead><tbody data-cn-body="provisions"></tbody></table>' +
+      '<p class="muted">Dự phòng được ghi vào chi phí và giảm giá trị phải thu trên báo cáo tài chính.</p>' +
     '</div>';
   }
 
@@ -47,9 +59,18 @@
     '</tr>';
   }
 
+  function provisionRow(p) {
+    return '<tr data-cnpid="' + H.esc(p.id) + '">' +
+      '<td>' + H.esc(p.ky || '') + '</td>' +
+      '<td>' + H.money(p.amount) + '</td>' +
+      '<td>' + H.esc(p.note || '') + '</td>' +
+    '</tr>';
+  }
+
   function patch(ctx, section, data, initial) {
     var records = data.records || [];
-    var s = H.sig(records);
+    var provisions = data.provisions || [];
+    var s = H.sig({ r: records, p: provisions });
     if (ctx.pane.sigs['congno.records'] === s) return;
     ctx.pane.sigs['congno.records'] = s;
 
@@ -64,7 +85,13 @@
     section.querySelector('[data-cn="tra"]').textContent = H.money(tra);
     section.querySelector('[data-cn="conThu"]').textContent = H.money(conThu);
     section.querySelector('[data-cn="conTra"]').textContent = H.money(conTra);
-    section.querySelector('.cn-table tbody').innerHTML = records.length ? records.map(rowHtml).join('') : '<tr><td colspan="7" class="muted">Chưa có khoản công nợ</td></tr>';
+    section.querySelector('[data-cn="provision"]').textContent = H.money(provisions.reduce(function (sum, p) {
+      return H.roundMoney(sum + (Number(p.amount) || 0));
+    }, 0));
+    section.querySelector('[data-cn-body="records"]').innerHTML = records.length ? records.map(rowHtml).join('') : '<tr><td colspan="7" class="muted">Chưa có khoản công nợ</td></tr>';
+    section.querySelector('[data-cn-body="provisions"]').innerHTML = provisions.length
+      ? provisions.map(provisionRow).join('')
+      : '<tr><td colspan="3" class="muted">Chưa có dự phòng</td></tr>';
     if (!initial) ctx.bumpPatch();
   }
 
@@ -92,6 +119,27 @@
       if (!saved) { ctx.foot('Dữ liệu đang ở chế độ chỉ đọc, chưa lưu được công nợ.'); return; }
       e.currentTarget.reset();
       patch(ctx, section, current, false);
+    });
+
+    var provisionForm = section.querySelector('.cn-provision-form');
+    provisionForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (H.isReadOnly()) { ctx.foot('Dữ liệu đang ở chế độ chỉ đọc.'); return; }
+      var f = e.currentTarget.elements;
+      var amount = H.roundMoney(Number(f['amount'].value) || 0);
+      if (!(amount > 0)) { ctx.foot('Nhập số tiền dự phòng.'); return; }
+      var current = H.data(ctx.key, mod);
+      if (!Array.isArray(current.provisions)) current.provisions = [];
+      current.provisions.push({
+        id: H.uid('dp'), ky: f['ky'].value || H.monthOf(H.today()), amount: amount,
+        note: String(f['note'].value || '').trim(), at: new Date().toISOString()
+      });
+      current.updatedAt = new Date().toISOString();
+      if (!H.commit(ctx.key, [{ module: 'congno', value: current }], ctx, 'Đã trích dự phòng công nợ.')) return;
+      H.audit(ctx.key, 'Trích dự phòng', current.provisions[current.provisions.length - 1].ky);
+      e.currentTarget.reset();
+      patch(ctx, section, current, false);
+      ctx.sync('baocao');
     });
   }
 

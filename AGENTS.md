@@ -40,6 +40,12 @@
 - Số dư đầu kỳ: khai báo số dư Nợ/Có theo tài khoản, dùng làm số dư đầu kỳ của báo cáo tài chính.
 - Quản lý dữ liệu: tìm, sửa, xóa bản ghi trên từng phần, xuất CSV theo từng nhánh và xem nhật ký thay đổi.
 - Báo cáo tài chính: tab thứ bảy gồm B01a/B02 rút gọn, cân đối phát sinh và nút In; số liệu lấy đúng nhánh công ty đang mở.
+- Giá vốn hàng bán: phiếu bán có ô giá vốn, trả hàng hoàn đúng giá vốn; B02 hiện riêng dòng giá vốn.
+- Lương: bảng lương theo kỳ, tự tính khấu trừ theo tỷ lệ và trích theo lương; tiền lương, khấu trừ và trích theo lương đều vào nhật ký chung.
+- Dự phòng công nợ: trích theo kỳ, hiện trên tổng hợp công nợ và giảm giá trị phải thu trên báo cáo tài chính.
+- Trả hàng mua: hoàn tồn kho và giảm đúng khoản phải trả; thanh lý/nhượng bán tài sản ghi tiền thu, hao mòn và lãi/lỗ, đánh dấu tài sản đã thanh lý.
+- Kết chuyển cuối kỳ: phiếu Nợ/Có luôn cân bằng, hiện trong bảng và nhật ký chung.
+- Báo cáo: thêm B03 lưu chuyển tiền tệ trong bảy tab hiện có (không thêm tab mới).
 
 ## Nguyên tắc render
 - Mỗi công ty có một vùng `.tenant-pane` riêng, cache trong `state.panes` theo khóa MST.
@@ -52,6 +58,7 @@
 - Chạy server cục bộ, mở trình duyệt: thêm công ty có MST, thêm hàng trong kho, bán hàng, phát hành hóa đơn, rồi sang công ty khác và quay lại.
 - Kỳ vọng: bộ đếm “Cập nhật phần” tăng, “Render toàn bộ” đứng yên khi thêm dữ liệu và khi chuyển công ty cũ hoặc chuyển tab.
 - Kiểm cú pháp từng tệp: `node --check db.js`, `node --check js/core.js`, `node --check js/modules/*.js`, `node --check js/demo.js`, `node --check app.js`.
-- Kiểm dữ liệu mẫu: `node Scripts/check-demo.js` — mười bốn nhánh có bản ghi, thuế đúng, bấm lại không ghi đè.
+- Kiểm dữ liệu mẫu: `node Scripts/check-demo.js` — 27 dòng PASS (20 ca cũ giữ nguyên, thêm 7 ca cho nghiệp vụ mới).
 - Kiểm logic không cần trình duyệt: `node Scripts/check-logic.js`.
-  Kỳ vọng 125 dòng PASS: gồm 113 ca cũ và 12 ca mới cho định khoản, nhật ký chung, báo cáo tài chính, số dư đầu kỳ, khóa/mở kỳ, quản lý sửa bản ghi và nhật ký thay đổi.
+  Kỳ vọng 142 dòng PASS: giữ nguyên 125 ca cũ, thêm 17 ca cho giá vốn, lương, dự phòng, trả mua, thanh lý, kết chuyển và B03.
+- Trên thiết bị này `node --check` bị Bus error; muốn kiểm cú pháp thì biên dịch từng tệp bằng `new vm.Script(...)` trong một lệnh `node.real --jitless -e`.

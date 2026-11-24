@@ -37,6 +37,7 @@
         '<div class="stat"><label>Doanh thu bán</label><b data-bh="revenue">0 đ</b></div>' +
         '<div class="stat"><label>Đã thu</label><b data-bh="paid">0 đ</b></div>' +
         '<div class="stat"><label>Đã trả hàng</label><b data-bh="returned">0 đ</b></div>' +
+        '<div class="stat"><label>Giá vốn</label><b data-bh="cogs">0 đ</b></div>' +
       '</div>' +
       '<div class="card module-card">' +
         '<h3>Bán hàng</h3>' +
@@ -46,6 +47,7 @@
           '<select name="item">' + itemOptions(H.hangHoa(ctx.key)) + '</select>' +
           '<input name="qty" type="number" min="1" step="1" placeholder="Số lượng">' +
           '<input name="price" type="number" min="0" step="1000" placeholder="Đơn giá">' +
+          '<input name="cost" type="number" min="0" step="1000" placeholder="Giá vốn đơn vị">' +
           '<input name="discount" type="number" min="0" max="100" step="1" placeholder="Chiết khấu %">' +
           '<input name="paid" type="number" min="0" step="1000" placeholder="Đã thu">' +
           '<input name="note" placeholder="Diễn giải" maxlength="120">' +
@@ -102,18 +104,23 @@
     var so = H.sig(orders);
     if (ctx.pane.sigs['banhang.orders'] !== so) {
       ctx.pane.sigs['banhang.orders'] = so;
-      var revenue = 0, paid = 0, returned = 0;
+      var revenue = 0, paid = 0, returned = 0, cogs = 0;
       var returnRows = [];
       orders.forEach(function (o) {
         revenue += (Number(o.amount) || 0) - (Number(o.returned) || 0);
         paid += Number(o.paid) || 0;
         returned += Number(o.returned) || 0;
-        (o.returns || []).forEach(function (r) { returnRows.push(returnRowHtml(o, r)); });
+        cogs += Number(o.cogs) || 0;
+        (o.returns || []).forEach(function (r) {
+          returnRows.push(returnRowHtml(o, r));
+          cogs -= Number(r.cogs) || 0;
+        });
       });
       section.querySelector('[data-bh="count"]').textContent = String(orders.length);
       section.querySelector('[data-bh="revenue"]').textContent = H.money(revenue);
       section.querySelector('[data-bh="paid"]').textContent = H.money(paid);
       section.querySelector('[data-bh="returned"]').textContent = H.money(returned);
+      section.querySelector('[data-bh="cogs"]').textContent = H.money(H.roundMoney(cogs));
       section.querySelector('.bh-table tbody').innerHTML = orders.length
         ? orders.map(rowHtml).join('')
         : '<tr><td colspan="9" class="muted">Chưa có phiếu bán</td></tr>';
@@ -163,6 +170,7 @@
       var gross = H.roundMoney(qty * price);
       var discountAmount = H.roundMoney(gross * discount / 100);
       var amount = H.roundMoney(gross - discountAmount);
+      var cogs = H.roundMoney(qty * (Number(f['cost'].value) || 0));
       var paid = Math.min(H.roundMoney(Number(f['paid'].value) || 0), amount);
       var remain = H.roundMoney(amount - paid);
       if (!(amount > 0)) return;
@@ -198,6 +206,7 @@
         discountAmount: discountAmount,
         amount: amount,
         paid: paid,
+        cogs: cogs,
         returned: 0,
         returnedQty: 0,
         returns: [],
@@ -265,6 +274,7 @@
       if (!(qty > 0) || qty > sold - returnedQty) { ctx.foot('Số lượng trả không hợp lệ.'); return; }
       var unit = sold > 0 ? (Number(order.amount) || 0) / sold : 0;
       var amount = H.roundMoney(unit * qty);
+      var backCogs = H.roundMoney(sold > 0 ? (Number(order.cogs) || 0) * qty / sold : 0);
       var refund = Math.min(amount, Number(order.paid) || 0);
 
       var stockMod = K.modules.tonkho;
@@ -311,7 +321,7 @@
       if (!Array.isArray(order.returns)) order.returns = [];
       order.returns.push({
         id: H.uid('bhr'), date: f['date'].value || H.today(),
-        qty: qty, amount: amount, refund: refund,
+        qty: qty, amount: amount, refund: refund, cogs: backCogs,
         note: String(f['note'].value || '').trim(), at: new Date().toISOString()
       });
       order.returned = H.roundMoney((Number(order.returned) || 0) + amount);

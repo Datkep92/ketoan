@@ -18,9 +18,11 @@
 
   var NAMES = {
     '111': 'Tiền mặt', '112': 'Tiền gửi ngân hàng', '131': 'Phải thu khách hàng',
-    '152': 'Hàng hóa', '214': 'Hao mòn tài sản', '331': 'Phải trả người bán',
-    '3331': 'Thuế GTGT đầu ra', '511': 'Doanh thu bán hàng',
-    '641': 'Chi phí bán hàng', '642': 'Chi phí quản lý', '3387': 'Phải thu khác'
+    '152': 'Hàng hóa', '211': 'Tài sản cố định', '214': 'Hao mòn tài sản',
+    '229': 'Dự phòng công nợ', '331': 'Phải trả người bán', '334': 'Phải trả người lao động',
+    '338': 'Phải trả khác', '3331': 'Thuế GTGT đầu ra', '511': 'Doanh thu bán hàng',
+    '632': 'Giá vốn hàng bán', '641': 'Chi phí bán hàng', '642': 'Chi phí quản lý',
+    '911': 'Kết chuyển kết quả', '3387': 'Phải thu khác'
   };
 
   function defaults() {
@@ -95,7 +97,10 @@
           '<tbody data-report-body="b01"></tbody></table>' +
           '<h4>Báo cáo kết quả kinh doanh (B02 — rút gọn)</h4>' +
           '<table class="report-table"><thead><tr><th>Chỉ tiêu</th><th>Số phát sinh</th></tr></thead>' +
-          '<tbody data-report-body="b02"></tbody></table></div>' +
+          '<tbody data-report-body="b02"></tbody></table>' +
+          '<h4>Báo cáo lưu chuyển tiền tệ (B03 — rút gọn)</h4>' +
+          '<table class="report-table"><thead><tr><th>Chỉ tiêu</th><th>Số tiền</th></tr></thead>' +
+          '<tbody data-report-body="b03"></tbody></table></div>' +
         '<p class="muted">Bản rút gọn dùng cho doanh nghiệp nhỏ và vừa theo Thông tư 133/2016/TT-BTC. Số liệu cập nhật theo từng mã số thuế; in ra để đính kèm hồ sơ.</p>' +
       '</div>' +
     '</div>';
@@ -128,6 +133,7 @@
     }
     return {
       ct: get('chungtu', { vouchers: [] }),
+      cb: get('cashbank', { entries: [], payrolls: [] }),
       cn: get('congno', { records: [] }),
       bh: get('banhang', { orders: [] }),
       hd: get('hoadon', { invoices: [] }),
@@ -213,9 +219,9 @@
     if (SoCai) {
       var sc = [];
       codes.forEach(function (code) {
-        var acct = byAccount[code];
+        var acct = byAccount[code] || { debit: 0, credit: 0, lines: [] };
         sc.push('<tr data-report-account="' + code + '"><td colspan="6"><b>' + H.esc(codeLabel(code, names)) + '</b></td></tr>');
-        acct.lines.forEach(function (e) {
+        (acct.lines || []).forEach(function (e) {
           var side = e.debit === code ? 'Nợ' : 'Có';
           var other = e.debit === code ? e.credit : e.debit;
           sc.push('<tr><td>' + H.esc(e.date || '—') + '</td><td>' + H.esc(e.note) + '</td>' +
@@ -258,6 +264,11 @@
     });
     doanhThu = H.roundMoney(doanhThu);
     chiPhi = H.roundMoney(chiPhi);
+    var giaVon = 0;
+    entries.forEach(function (e) {
+      if (e.debit === '632' && e.credit === '152') giaVon += Number(e.amount) || 0;
+    });
+    giaVon = H.roundMoney(giaVon);
     put('kqkdDoanhThu', doanhThu);
     put('kqkdChiPhi', chiPhi);
     put('kqkdLoiNhuan', doanhThu - chiPhi);
@@ -323,11 +334,46 @@
     if (b02) {
       b02.innerHTML = [
         reportLine('Doanh thu bán hàng và cung cấp dịch vụ', doanhThu),
-        reportLine('Chi phí bán hàng và quản lý', chiPhi),
+        reportLine('Giá vốn hàng bán', giaVon),
+        reportLine('Chi phí bán hàng và quản lý', H.roundMoney(chiPhi - giaVon)),
         reportLine('Lợi nhuận trước thuế', H.roundMoney(doanhThu - chiPhi), true),
         reportLine('Thuế GTGT đầu ra', dauRa),
         reportLine('Thuế GTGT đầu vào', dauVao),
         reportLine('Thuế GTGT phải nộp', H.roundMoney(dauRa - dauVao), true)
+      ].join('');
+    }
+    var b03 = section.querySelector('[data-report-body="b03"]');
+    if (b03) {
+      var flow = { ban: 0, mua: 0, luong: 0, khac: 0, dauTu: 0 };
+      entries.forEach(function (e) {
+        var isIn = e.debit === '111' || e.debit === '112';
+        var isOut = e.credit === '111' || e.credit === '112';
+        if (!isIn && !isOut) return;
+        var amt = Number(e.amount) || 0;
+        var from = String(e.source || '');
+        if (from === 'taisan-disposal' && isIn) flow.dauTu += amt;
+        else if (from.indexOf('banhang') === 0) flow.ban += isIn ? amt : -amt;
+        else if (from.indexOf('muahang') === 0) flow.mua += isIn ? -amt : amt;
+        else if (from.indexOf('luong') === 0 && isOut) flow.luong += amt;
+        else flow.khac += isIn ? amt : -amt;
+      });
+      var opCash = H.roundMoney(openNet('111') + openNet('112'));
+      var operating = H.roundMoney(flow.ban - flow.mua - flow.luong + flow.khac);
+      var investing = H.roundMoney(flow.dauTu);
+      var netCash = H.roundMoney(operating + investing);
+      b03.innerHTML = [
+        reportLine('I. Lưu chuyển tiền từ hoạt động kinh doanh', '', true),
+        reportLine('Tiền thu bán hàng', H.roundMoney(flow.ban)),
+        reportLine('Tiền chi mua hàng', -H.roundMoney(flow.mua)),
+        reportLine('Tiền chi lương và trích theo lương', -H.roundMoney(flow.luong)),
+        reportLine('Thu, chi khác', H.roundMoney(flow.khac)),
+        reportLine('Lưu chuyển tiền thuần từ kinh doanh', operating, true),
+        reportLine('II. Lưu chuyển tiền từ hoạt động đầu tư', '', true),
+        reportLine('Tiền thu thanh lý tài sản', investing),
+        reportLine('Lưu chuyển tiền thuần từ đầu tư', investing, true),
+        reportLine('Tăng / giảm tiền trong kỳ', netCash, true),
+        reportLine('Tiền đầu kỳ', opCash),
+        reportLine('Tiền cuối kỳ', H.roundMoney(opCash + netCash), true)
       ].join('');
     }
   }
@@ -340,7 +386,10 @@
       items: src.dm.items || [], hd: src.hd.invoices || [],
       mua: src.mh.purchases || [], muaHd: src.mh.bills || [],
       taiSan: src.ts.assets || [], accounts: src.accounts || [],
-      dk: src.dk.entries || [], kk: src.kk.openings || []
+      dk: src.dk.entries || [], kk: src.kk.openings || [],
+      kkClose: src.kk.closings || [], provision: src.cn.provisions || [],
+      payroll: src.cb.payrolls || [], disposal: src.ts.disposals || [],
+      voucher: src.ct.vouchers || [], cash: src.cb.entries || []
     });
     if (ctx.pane.sigs['baocao.tonghop'] === s) return;
     ctx.pane.sigs['baocao.tonghop'] = s;

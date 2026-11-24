@@ -566,3 +566,76 @@ assert(branchOf('chungtu').vouchers.some(v => v.note === 'Đã sửa qua quản 
   branchOf('quanly').audit.some(l => l.action.indexOf('Sửa Chứng từ') >= 0),
   'quản lý dữ liệu -> sửa bản ghi và ghi nhật ký');
 qlSec.querySelector('[data-ql-export]').fire('click');
+
+// ---------- Nghiệp vụ bổ sung: giá vốn, lương, dự phòng, trả mua, thanh lý, kết chuyển, B03 ----------
+tabOf(paneA, 'banhang').fire('click');
+fill(bhForm, { date: '2026-11-28', item: itemId, qty: '2', price: '50000', cost: '30000', paid: '100000', note: 'Bán có giá vốn' });
+bhForm.fire('submit');
+assert(branchOf('banhang').orders.length === 2 && branchOf('banhang').orders[1].cogs === 60000,
+  'bán hàng -> ghi nhận giá vốn riêng');
+assert(stockOf()[itemId] === 18, 'bán có giá vốn -> trừ đúng tồn kho');
+fill(returnForm, { order: branchOf('banhang').orders[1].id, date: '2026-11-29', qty: '1', note: 'Trả hàng có giá vốn' });
+returnForm.fire('submit');
+assert(branchOf('banhang').orders[1].returns[0].cogs === 30000, 'trả hàng -> hoàn đúng giá vốn');
+
+tabOf(paneA, 'cashbank').fire('click');
+const payrollForm = cbSec.querySelector('.cb-payroll-form');
+fill(payrollForm, { ky: '2026-11', date: '2026-11-30', gross: '20000000', rate: '8', employer: '3000000', paid: '0' });
+payrollForm.fire('submit');
+assert(branchOf('cashbank').payrolls.length === 1 && branchOf('cashbank').payrolls[0].hold === 1600000 &&
+  branchOf('cashbank').payrolls[0].employer === 3000000, 'bảng lương -> tính đúng khấu trừ và trích theo lương');
+assert(cbSec.querySelector('.cb-payroll-table tbody').children.filter(c => c.tagName === 'tr').length === 1,
+  'bảng lương -> hiện đúng một dòng');
+
+tabOf(paneA, 'congno').fire('click');
+const provisionForm = cnSec.querySelector('.cn-provision-form');
+fill(provisionForm, { ky: '2026-11', amount: '200000', note: 'Dự phòng Khách A' });
+provisionForm.fire('submit');
+assert(branchOf('congno').provisions.length === 1 && branchOf('congno').provisions[0].amount === 200000,
+  'dự phòng công nợ -> lưu đúng số tiền');
+
+tabOf(paneA, 'muahang').fire('click');
+const mhReturn = mhSec.querySelector('.mh-return-form');
+fill(mhReturn, { purchase: branchOf('muahang').purchases[0].id, date: '2026-11-29', qty: '1', note: 'Hàng lỗi' });
+mhReturn.fire('submit');
+assert(branchOf('muahang').purchases[0].returns.length === 1 && branchOf('muahang').purchases[0].returns[0].total === 110000,
+  'trả hàng mua -> tính đúng tiền trả');
+assert(stockOf()[itemId] === 18, 'trả hàng mua -> giảm đúng tồn kho');
+assert(branchOf('congno').records[2].amount === 110000, 'trả hàng mua -> giảm đúng khoản phải trả');
+
+tabOf(paneA, 'taisan').fire('click');
+const disposeForm = tsSec.querySelector('.ts-dispose-form');
+fill(disposeForm, { asset: assetId, date: '2026-11-30', proceeds: '400000', note: 'Nhượng bán' });
+disposeForm.fire('submit');
+assert(branchOf('taisan').disposals.length === 1 && branchOf('taisan').disposals[0].proceeds === 400000 &&
+  branchOf('taisan').assets[0].disposed === true, 'thanh lý tài sản -> ghi nhận tiền thu và đánh dấu đã thanh lý');
+
+tabOf(paneA, 'khoaky').fire('click');
+const kkSecNew = sectionOf(paneA, 'khoaky');
+const closeForm = kkSecNew.querySelector('.kk-close-form');
+fill(closeForm, { from: '511', to: '911', amount: '500000', note: 'Kết chuyển doanh thu' });
+closeForm.fire('submit');
+assert(branchOf('khoaky').closings.length === 1 && branchOf('khoaky').closings[0].lines.length === 2,
+  'kết chuyển cuối kỳ -> lưu đúng phiếu hai dòng');
+assert(kkSecNew.querySelector('.kk-close-table tbody').children.filter(c => c.tagName === 'tr').length === 1,
+  'kết chuyển cuối kỳ -> hiện đúng một dòng');
+
+const allSources = box.Ketoan.helpers.journalFrom({
+  ct: branchOf('chungtu'), cb: branchOf('cashbank'), cn: branchOf('congno'), bh: branchOf('banhang'),
+  hd: branchOf('hoadon'), mh: branchOf('muahang'), ts: branchOf('taisan'), kho: branchOf('tonkho'),
+  dm: branchOf('danhmuc'), dk: branchOf('dinhkhoan'), kk: branchOf('khoaky')
+});
+const wanted = ['banhang-cogs', 'banhang-return-cogs', 'muahang-return', 'taisan-disposal',
+  'luong-accrual', 'duphong', 'khoaky-close'];
+assert(wanted.every(s => allSources.some(e => e.source === s)),
+  'nhật ký chung -> ghi nhận đủ bảy nghiệp vụ bổ sung');
+assert(allSources.every(e => e.debit && e.credit && Number(e.amount) > 0),
+  'nhật ký chung -> mọi bút toán đều có tài khoản và số tiền hợp lệ');
+
+tabOf(paneA, 'baocao').fire('click');
+assert(bcSec.querySelectorAll('.report-tab').length === 7, 'báo cáo -> vẫn giữ đúng bảy tab');
+const b02Html = String(bcSec.querySelector('[data-report-body="b02"]')._html);
+assert(b02Html.indexOf('Giá vốn hàng bán') >= 0, 'B02 -> có riêng dòng giá vốn hàng bán');
+const b03Html = String(bcSec.querySelector('[data-report-body="b03"]')._html);
+assert(b03Html.indexOf('Tiền thu thanh lý tài sản') >= 0 && b03Html.indexOf('Tăng / giảm tiền trong kỳ') >= 0,
+  'B03 -> có báo cáo lưu chuyển tiền tệ');

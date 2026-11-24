@@ -1,12 +1,12 @@
-// Khóa kỳ và số dư đầu kỳ: sau khi khóa đến một tháng, mọi nghiệp vụ có ngày
-// từ tháng đó trở về trước bị từ chối. Số dư đầu kỳ đưa vào bảng cân đối tài sản.
+// Khóa kỳ, số dư đầu kỳ và kết chuyển cuối kỳ. Sau khi khóa đến một tháng,
+// mọi nghiệp vụ có ngày từ tháng đó trở về trước bị từ chối.
 (function (global) {
   'use strict';
   var K = global.Ketoan;
   if (!K) return;
   var H = K.helpers;
 
-  function defaults() { return { lockedUntil: '', openings: [], updatedAt: '' }; }
+  function defaults() { return { lockedUntil: '', openings: [], closings: [], updatedAt: '' }; }
 
   function mount(ctx) {
     var options = H.accounts(ctx.key).map(function (a) {
@@ -18,6 +18,7 @@
         '<div class="stat"><label>Số dư đầu kỳ Nợ</label><b data-kk="debit">0 đ</b></div>' +
         '<div class="stat"><label>Số dư đầu kỳ Có</label><b data-kk="credit">0 đ</b></div>' +
         '<div class="stat"><label>Số khoản số dư</label><b data-kk="count">0</b></div>' +
+        '<div class="stat"><label>Kết chuyển</label><b data-kk="closings">0</b></div>' +
       '</div>' +
       '<div class="card module-card">' +
         '<h3>Khóa kỳ kế toán</h3>' +
@@ -41,6 +42,20 @@
           '<th>Tài khoản</th><th>Bên</th><th>Số tiền</th><th>Ghi chú</th><th></th>' +
         '</tr></thead><tbody data-kk-body="list"></tbody></table></div>' +
         '<p class="muted">Nhập số dư của các tài khoản có số dư đầu kỳ (tiền, công nợ, vốn…). Số này cộng vào bảng cân đối tài sản nhưng không tính vào phát sinh trong kỳ.</p>' +
+      '</div>' +
+      '<div class="card module-card">' +
+        '<h3>Kết chuyển cuối kỳ</h3>' +
+        '<form class="kk-close-form">' +
+          '<select name="from">' + options + '</select>' +
+          '<select name="to">' + options + '</select>' +
+          '<input name="date" type="date" placeholder="Ngày kết chuyển">' +
+          '<input name="amount" type="number" min="0" step="1000" placeholder="Số tiền">' +
+          '<input name="note" placeholder="Diễn giải" maxlength="120">' +
+          '<button class="btn primary" type="submit">Ghi kết chuyển</button>' +
+        '</form>' +
+        '<table class="kk-close-table"><thead><tr><th>Kỳ</th><th>Từ tài khoản</th><th>Sang tài khoản</th>' +
+          '<th>Số tiền</th><th>Diễn giải</th></tr></thead><tbody></tbody></table>' +
+        '<p class="muted">Bút toán kết chuyển gồm một dòng Có tài khoản nguồn và một dòng Nợ tài khoản đích,luôn cân bằng và hiện trong nhật ký chung.</p>' +
       '</div>';
   }
 
@@ -124,11 +139,44 @@
       patch(ctx, section, current, false);
       ctx.sync('baocao');
     });
+
+    var closeForm = section.querySelector('.kk-close-form');
+    closeForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (H.isReadOnly()) { ctx.foot('Dữ liệu đang ở chế độ chỉ đọc.'); return; }
+      var f = e.currentTarget.elements;
+      var amount = H.roundMoney(Number(f['amount'].value) || 0);
+      var from = String(f['from'].value || '');
+      var to = String(f['to'].value || '');
+      if (!(amount > 0) || !from || !to) { ctx.foot('Nhập đủ tài khoản và số tiền kết chuyển.'); return; }
+      if (from === to) { ctx.foot('Tài khoản nguồn và đích phải khác nhau.'); return; }
+      var current = H.data(ctx.key, mod);
+      if (!Array.isArray(current.closings)) current.closings = [];
+      var row = {
+        id: H.uid('kc'), so: H.nextCode(current.closings, 'KC', 4),
+        date: f['date'] ? (f['date'].value || H.today()) : H.today(),
+        lines: [
+          { account: from, credit: amount },
+          { account: to, debit: amount }
+        ],
+        note: String(f['note'].value || '').trim(),
+        at: new Date().toISOString()
+      };
+      current.closings.push(row);
+      current.updatedAt = new Date().toISOString();
+      if (!H.commit(ctx.key, [{ module: 'khoaky', value: current }], ctx, 'Đã ghi kết chuyển ' + row.so + '.')) return;
+      H.audit(ctx.key, 'Kết chuyển', from + ' → ' + to + ': ' + H.money(amount));
+      e.currentTarget.reset();
+      if (closeForm.elements['date']) closeForm.elements['date'].value = H.today();
+      patch(ctx, section, current, false);
+      ctx.sync('baocao');
+    });
   }
 
   function patch(ctx, section, data, initial) {
     var openings = data.openings || [];
-    var s = H.sig({ o: openings, k: data.lockedUntil || '' });
+    var closings = data.closings || [];
+    var s = H.sig({ o: openings, k: data.lockedUntil || '', c: closings });
     if (ctx.pane.sigs['khoaky.data'] === s) return;
     ctx.pane.sigs['khoaky.data'] = s;
     var debit = 0, credit = 0;
@@ -144,7 +192,19 @@
     put('debit', H.money(H.roundMoney(debit)));
     put('credit', H.money(H.roundMoney(credit)));
     put('count', String(openings.length));
+    put('closings', String(closings.length));
     renderList(ctx, section, openings);
+    var body = section.querySelector('.kk-close-table tbody');
+    if (body) {
+      body.innerHTML = closings.length ? closings.map(function (c) {
+        return '<tr data-kkid="' + H.esc(c.id) + '">' +
+          '<td>' + H.esc(c.date || '') + '</td>' +
+          '<td>' + H.esc(c.lines[0].account) + '</td>' +
+          '<td>' + H.esc(c.lines[1].account) + '</td>' +
+          '<td>' + H.money(c.lines[0].credit) + '</td>' +
+          '<td>' + H.esc(c.note || '') + '</td></tr>';
+      }).join('') : '<tr><td colspan="5" class="muted">Chưa có kết chuyển</td></tr>';
+    }
     if (!initial) ctx.bumpPatch();
   }
 

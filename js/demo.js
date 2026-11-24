@@ -60,6 +60,9 @@
         { id: 'cn-demo-3', type: 'phaiTra', partner: 'Công ty TNHH Văn phòng phẩm Sài Gòn', amount: 860000, paid: 0, due: '2026-12-20', voucherIds: [], source: 'muahang:mh-demo-1' },
         { id: 'cn-demo-4', type: 'phaiTra', partner: 'Công ty CP Thiết bị Vina', amount: 2700000, paid: 0, due: '2026-12-10', voucherIds: [], source: 'muahang:mh-demo-2' }
       ],
+      provisions: [
+        { id: 'cnp-demo-1', ky: '2026-11', amount: 200000, note: 'Dự phòng khoản phải thu quá hạn', at: STAMP }
+      ],
       updatedAt: STAMP
     };
 
@@ -83,14 +86,14 @@
       orders: [
         { id: 'bh-demo-1', ma: 'BH-0001', date: '2026-11-15', customer: 'Công ty TNHH Thương mại Hà Nội', customerId: 'dm-kh1', itemId: 'sp-dv1', itemName: 'Dịch vụ kế toán trọn gói', qty: 2, price: 2500000, gross: 5000000, discount: 5, discountAmount: 250000, amount: 4750000, paid: 4750000, returned: 0, returnedQty: 0, returns: [], note: 'Kế toán tháng 11', source: 'banhang', at: at('2026-11-15') },
         { id: 'bh-demo-2', ma: 'BH-0002', date: '2026-11-19', customer: 'Công ty CP Dịch vụ Việt Trung', customerId: 'dm-kh2', itemId: 'sp-dv2', itemName: 'Tư vấn thuế', qty: 4, price: 600000, gross: 2400000, discount: 0, discountAmount: 0, amount: 2400000, paid: 0, returned: 0, returnedQty: 0, returns: [], note: 'Tư vấn 4 buổi', source: 'banhang', at: at('2026-11-19') },
-        { id: 'bh-demo-3', ma: 'BH-0003', date: '2026-11-22', customer: 'Hộ kinh doanh Lan Anh', customerId: 'dm-kh3', itemId: 'sp-hh1', itemName: 'Giấy in A4 (ram)', qty: 10, price: 45000, gross: 450000, discount: 0, discountAmount: 0, amount: 450000, paid: 450000, returned: 90000, returnedQty: 2, returns: [{ id: 'bhr-demo-1', date: '2026-11-23', qty: 2, amount: 90000, refund: 90000, note: 'Hàng bị lỗi', at: at('2026-11-23') }], note: 'Khách lẻ', source: 'banhang', at: at('2026-11-22') }
+        { id: 'bh-demo-3', ma: 'BH-0003', date: '2026-11-22', customer: 'Hộ kinh doanh Lan Anh', customerId: 'dm-kh3', itemId: 'sp-hh1', itemName: 'Giấy in A4 (ram)', qty: 10, price: 45000, gross: 450000, discount: 0, discountAmount: 0, amount: 450000, paid: 450000, returned: 90000, returnedQty: 2, cogs: 360000, returns: [{ id: 'bhr-demo-1', date: '2026-11-23', qty: 2, amount: 90000, refund: 90000, cogs: 72000, note: 'Hàng bị lỗi', at: at('2026-11-23') }], note: 'Khách lẻ', source: 'banhang', at: at('2026-11-22') }
       ],
       updatedAt: STAMP
     };
 
     var muahang = {
       purchases: [
-        { id: 'mh-demo-1', ma: 'MH-0001', date: '2026-11-08', supplier: 'Công ty TNHH Văn phòng phẩm Sài Gòn', supplierId: 'dm-ncc1', itemId: 'sp-hh1', itemName: 'Giấy in A4 (ram)', qty: 100, price: 45000, amount: 4500000, tax: 8, taxAmount: 360000, total: 4860000, paid: 4000000, note: 'Nhập giấy in', source: 'muahang', at: at('2026-11-08') },
+        { id: 'mh-demo-1', ma: 'MH-0001', date: '2026-11-08', supplier: 'Công ty TNHH Văn phòng phẩm Sài Gòn', supplierId: 'dm-ncc1', itemId: 'sp-hh1', itemName: 'Giấy in A4 (ram)', qty: 100, price: 45000, amount: 4500000, tax: 8, taxAmount: 360000, total: 4860000, paid: 4000000, note: 'Nhập giấy in', source: 'muahang', returnedQty: 2, returns: [{ id: 'mhr-demo-1', date: '2026-11-24', qty: 2, amount: 90000, total: 90000, note: 'Giấy bị lỗi', at: at('2026-11-24') }], at: at('2026-11-08') },
         { id: 'mh-demo-2', ma: 'MH-0002', date: '2026-11-18', supplier: 'Công ty CP Thiết bị Vina', supplierId: 'dm-ncc2', itemId: 'sp-hh2', itemName: 'Mực in HP 83A', qty: 2, price: 1250000, amount: 2500000, tax: 8, taxAmount: 200000, total: 2700000, paid: 0, note: 'Nhập mực in', source: 'muahang', at: at('2026-11-18') }
       ],
       bills: [
@@ -115,13 +118,19 @@
         { id: 'cb-demo-2', ma: 'QB-0002', date: '2026-11-20', type: 'out', account: '111', amount: 1200000, note: 'Chi điện nước', source: 'cashbank', at: at('2026-11-20') },
         { id: 'cb-demo-3', ma: 'QB-0003', date: '2026-11-21', type: 'out', account: '111', amount: 6000000, note: 'Chi lương nhân viên', source: 'cashbank', at: at('2026-11-21') }
       ],
+      payrolls: [
+        { id: 'cbp-demo-1', ky: '2026-11', date: '2026-11-30', gross: 24000000, rate: 8, hold: 1920000, employer: 3200000, net: 22080000, paid: 0, at: STAMP }
+      ],
       updatedAt: STAMP
     };
 
     var taisan = {
       assets: [
         { id: 'ts-demo-1', name: 'Máy tính Dell OptiPlex', date: '2026-01-10', cost: 25000000, years: 5, accumulated: 1250000, depreciation: [{ id: 'kh-demo-1', months: 3, amount: 1250000, date: '2026-11-01', at: at('2026-11-01') }], note: 'Dùng cho kế toán', at: at('2026-01-10') },
-        { id: 'ts-demo-2', name: 'Máy in HP LaserJet', date: '2026-04-05', cost: 8000000, years: 4, accumulated: 1166667, depreciation: [{ id: 'kh-demo-2', months: 7, amount: 1166667, date: '2026-11-01', at: at('2026-11-01') }], note: 'In hóa đơn', at: at('2026-04-05') }
+        { id: 'ts-demo-2', name: 'Máy in HP LaserJet', date: '2026-04-05', cost: 8000000, years: 4, accumulated: 1166667, depreciation: [{ id: 'kh-demo-2', months: 7, amount: 1166667, date: '2026-11-01', at: at('2026-11-01') }], note: 'In hóa đơn', disposed: true, at: at('2026-04-05') }
+      ],
+      disposals: [
+        { id: 'tsd-demo-1', assetId: 'ts-demo-2', name: 'Máy in HP LaserJet', date: '2026-11-28', cost: 8000000, accumulated: 1166667, proceeds: 3000000, note: 'Nhượng bán', at: at('2026-11-28') }
       ],
       updatedAt: STAMP
     };
@@ -148,6 +157,11 @@
       openings: [
         { id: 'kk-demo-1', account: '111', side: 'no', amount: 20000000, note: 'Số dư tiền đầu năm', createdAt: STAMP },
         { id: 'kk-demo-2', account: '331', side: 'co', amount: 15000000, note: 'Số dư phải trả đầu năm', createdAt: STAMP }
+      ],
+      closings: [
+        { id: 'kc-demo-1', so: 'KC/26-001', date: '2026-11-30', lines: [
+          { account: '511', credit: 7200000 }, { account: '911', debit: 7200000 }
+        ], note: 'Kết chuyển doanh thu', at: STAMP }
       ],
       updatedAt: STAMP
     };

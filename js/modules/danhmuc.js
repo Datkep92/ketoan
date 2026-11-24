@@ -37,19 +37,21 @@
         '<input name="code" placeholder="Mã / số hiệu">' +
         '<input name="name" placeholder="Tên" required maxlength="120">' +
         '<input name="extra" placeholder="MST hoặc đơn vị tính" maxlength="60">' +
-        '<input name="price" type="number" min="0" step="1000" placeholder="Đơn giá">' +
+        '<input name="price" type="number" min="0" step="1000" placeholder="Đơn giá bán">' +
+        '<input name="cost" type="number" min="0" step="1000" placeholder="Giá vốn đơn vị">' +
         '<button class="btn primary" type="submit">Thêm</button>' +
       '</form>' +
       '<div class="dm-columns">' + columns + '</div>' +
-      '<p class="muted">Tài khoản ở đây sẽ hiện trong form chứng từ. Có thể nối thêm nhóm danh mục khác mà không đổi cấu trúc lưu trữ.</p>' +
+      '<p class="muted">Giá vốn và đơn giá bán nhập cho hàng hóa sẽ được dùng khi lập phiếu bán. Tài khoản ở đây hiện trong form chứng từ.</p>' +
     '</div>';
   }
 
   function itemHtml(item) {
     var code = item.code ? '<b>' + H.esc(item.code) + '</b> · ' : '';
     var extra = item.extra ? ' <small>' + H.esc(item.extra) + '</small>' : '';
-    var price = item.price ? ' <span>' + H.money(item.price) + '</span>' : '';
-    return '<li>' + code + H.esc(item.name) + extra + price + '</li>';
+    var price = item.price ? ' <span>Bán ' + H.money(item.price) + '</span>' : '';
+    var cost = item.cost ? ' <span>Vốn ' + H.money(item.cost) + '</span>' : '';
+    return '<li>' + code + H.esc(item.name) + extra + price + cost + '</li>';
   }
 
   function patch(ctx, section, data, initial) {
@@ -84,7 +86,8 @@
         code: code,
         name: name,
         extra: String(f['extra'].value || '').trim(),
-        price: Number(f['price'].value) || 0
+        price: Number(f['price'].value) || 0,
+        cost: Number(f['cost'].value) || 0
       });
       current.updatedAt = new Date().toISOString();
       var saved = H.save(ctx.key, mod, current);

@@ -28,6 +28,12 @@
     }).join('');
   }
 
+  function returnOptions(list) {
+    return '<option value="">-- Chọn phiếu mua --</option>' + (list || []).map(function (p) {
+      return '<option value="' + H.esc(p.id) + '">' + H.esc(p.ma || p.id) + ' — ' + H.esc(p.supplier || '') + '</option>';
+    }).join('');
+  }
+
   function mount(ctx) {
     return '<div class="stats">' +
         '<div class="stat"><label>Số phiếu mua</label><b data-mh="count">0</b></div>' +
@@ -67,6 +73,19 @@
         '</form>' +
         '<table class="mh-bill-table"><thead><tr><th>Số</th><th>Ngày</th><th>Nhà cung cấp</th>' +
           '<th>Tiền hàng</th><th>Thuế</th><th>Tổng</th><th>Đã trả</th></tr></thead><tbody></tbody></table>' +
+      '</div>' +
+      '<div class="card module-card">' +
+        '<h3>Trả hàng mua</h3>' +
+        '<form class="mh-return-form">' +
+          '<select name="purchase"></select>' +
+          '<input name="date" type="date" required>' +
+          '<input name="qty" type="number" min="1" step="1" placeholder="Số lượng trả">' +
+          '<input name="note" placeholder="Lý do trả" maxlength="120">' +
+          '<button class="btn primary" type="submit">Ghi nhận trả hàng</button>' +
+        '</form>' +
+        '<table class="mh-return-table"><thead><tr><th>Phiếu mua</th><th>Ngày</th><th>Số lượng</th>' +
+          '<th>Giá trị</th><th>Lý do</th></tr></thead><tbody></tbody></table>' +
+        '<p class="muted">Hàng trả được trừ vào tồn kho và giảm công nợ phải trả cho nhà cung cấp.</p>' +
       '</div>';
   }
 
@@ -106,9 +125,18 @@
     ctx.pane.sigs['muahang.data'] = s;
 
     var amount = 0, paid = 0, billTotal = 0;
+    var returnRows = [];
     purchases.forEach(function (p) {
       amount += Number(p.total) || 0;
       paid += Number(p.paid) || 0;
+      (p.returns || []).forEach(function (r) {
+        returnRows.push('<tr data-mhrid="' + H.esc(r.id) + '">' +
+          '<td>' + H.esc(p.ma || p.id) + '</td>' +
+          '<td>' + H.esc(r.date || '') + '</td>' +
+          '<td>' + H.money(r.qty).replace(' đ', '') + '</td>' +
+          '<td>' + H.money(r.total) + '</td>' +
+          '<td>' + H.esc(r.note || '') + '</td></tr>');
+      });
     });
     bills.forEach(function (b) { billTotal += Number(b.total) || 0; });
     section.querySelector('[data-mh="count"]').textContent = String(purchases.length);
@@ -121,11 +149,17 @@
     section.querySelector('.mh-bill-table tbody').innerHTML = bills.length
       ? bills.map(billRow).join('')
       : '<tr><td colspan="7" class="muted">Chưa có hóa đơn đầu vào</td></tr>';
+    section.querySelector('.mh-return-table tbody').innerHTML = returnRows.length
+      ? returnRows.join('')
+      : '<tr><td colspan="5" class="muted">Chưa có lần trả hàng</td></tr>';
 
     var mainForm = section.querySelector('.mh-form');
     mainForm.elements['supplier'].innerHTML = supplierOptions(suppliers);
     mainForm.elements['item'].innerHTML = itemOptions(items);
     section.querySelector('.mh-bill-form').elements['purchase'].innerHTML = purchaseOptions(purchases);
+    section.querySelector('.mh-return-form').elements['purchase'].innerHTML = returnOptions(purchases.filter(function (p) {
+      return (Number(p.returnedQty) || 0) < (Number(p.qty) || 0);
+    }));
     if (!initial) ctx.bumpPatch();
   }
 
@@ -268,6 +302,70 @@
       e.currentTarget.reset();
       billForm.elements['date'].value = H.today();
       patch(ctx, section, current, false);
+      ctx.sync('baocao');
+    });
+
+    var returnForm = section.querySelector('.mh-return-form');
+    returnForm.elements['date'].value = H.today();
+    returnForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (H.isReadOnly()) { ctx.foot('Dữ liệu đang ở chế độ chỉ đọc.'); return; }
+      var f = e.currentTarget.elements;
+      var current = H.data(ctx.key, mod);
+      if (!Array.isArray(current.purchases)) current.purchases = [];
+      var id = String(f['purchase'].value || '');
+      var purchase = current.purchases.filter(function (p) { return p.id === id; })[0];
+      if (!purchase) { ctx.foot('Hãy chọn phiếu mua cần trả.'); return; }
+      var qty = Number(f['qty'].value) || 0;
+      var bought = Number(purchase.qty) || 0;
+      var done = Number(purchase.returnedQty) || 0;
+      if (!(qty > 0) || qty > bought - done) { ctx.foot('Số lượng trả không hợp lệ.'); return; }
+      var total = H.roundMoney(bought > 0 ? (Number(purchase.total) || 0) * qty / bought : 0);
+
+      var stockMod = K.modules.tonkho;
+      var stock = stockMod ? H.data(ctx.key, stockMod) : null;
+      if (stock) {
+        if (!stock.stock || typeof stock.stock !== 'object' || Array.isArray(stock.stock)) stock.stock = {};
+        if ((Number(stock.stock[purchase.itemId]) || 0) < qty) {
+          ctx.foot('Tồn kho không đủ để trả hàng mua.'); return;
+        }
+      }
+      var writes = [{ module: 'muahang', value: current }];
+      if (stock) {
+        if (!Array.isArray(stock.movements)) stock.movements = [];
+        stock.stock[purchase.itemId] = (Number(stock.stock[purchase.itemId]) || 0) - qty;
+        stock.movements.push({
+          id: H.uid('k'), type: 'xuat', itemId: purchase.itemId, qty: qty,
+          note: 'Trả hàng mua phiếu ' + (purchase.ma || purchase.id), at: new Date().toISOString()
+        });
+        stock.updatedAt = new Date().toISOString();
+        writes.push({ module: 'tonkho', value: stock });
+      }
+      var cnMod = K.modules.congno;
+      if (cnMod) {
+        var cn = H.data(ctx.key, cnMod);
+        if (!Array.isArray(cn.records)) cn.records = [];
+        var debt = cn.records.filter(function (r) { return r.source === 'muahang:' + purchase.id; })[0];
+        if (debt) {
+          debt.amount = Math.max(0, H.roundMoney((Number(debt.amount) || 0) - total));
+          writes.push({ module: 'congno', value: cn });
+        }
+      }
+      if (!Array.isArray(purchase.returns)) purchase.returns = [];
+      purchase.returns.push({
+        id: H.uid('mhr'), date: f['date'].value || H.today(), qty: qty,
+        total: total, note: String(f['note'].value || '').trim(), at: new Date().toISOString()
+      });
+      purchase.returnedQty = done + qty;
+      purchase.returned = H.roundMoney((Number(purchase.returned) || 0) + total);
+      current.updatedAt = new Date().toISOString();
+      if (!H.commit(ctx.key, writes, ctx, 'Đã ghi trả hàng mua phiếu ' + (purchase.ma || purchase.id) + '.')) return;
+
+      e.currentTarget.reset();
+      returnForm.elements['date'].value = H.today();
+      patch(ctx, section, current, false);
+      ctx.sync('tonkho');
+      ctx.sync('congno');
       ctx.sync('baocao');
     });
   }

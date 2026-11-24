@@ -52,3 +52,10 @@
 - Kiểm chứng bằng lệnh: kiểm cú pháp toàn bộ tệp JavaScript sạch; `node Scripts/check-logic.js` — 125/125 PASS (113 ca cũ giữ nguyên, thêm 12 ca mới); `node Scripts/check-demo.js` — 20/20 PASS. Máy chủ cục bộ trả HTTP 200 cho mọi tệp giao diện, gồm ba phần mới.
 - Chưa kiểm chứng bằng mắt trên trình duyệt thiết bị: tự mở `http://127.0.0.1:8899/index.html`, bấm “Dữ liệu mẫu”, thử định khoản, khóa kỳ rồi thêm bút toán (phải bị chặn), mở lại kỳ, sửa bản ghi trong “Quản lý dữ liệu” và mở tab “Báo cáo tài chính” để in.
 - Chưa phát hành công khai: chưa đóng gói, chưa đẩy kho và chưa công bố; cần xác nhận riêng trước khi làm.
+
+## Bổ sung (hoàn thiện nghiệp vụ theo Thông tư 133)
+- Nhiệm vụ: rà soát nghiệp vụ kế toán và bổ sung các phần còn thiếu để phát hành công khai, nhưng vẫn giữ nguyên mười bốn phần và bảy tab báo cáo.
+- Đã xong: giá vốn hàng bán (kể cả hoàn giá vốn khi trả hàng); bảng lương và trích theo lương; dự phòng công nợ; trả hàng mua giảm tồn và giảm phải trả; thanh lý/nhượng bán tài sản có lãi/lỗ; kết chuyển cuối kỳ cân bằng; báo cáo lưu chuyển tiền tệ B03. Mọi bút toán mới đều đi qua nhật ký chung.
+- Kiểm chứng bằng lệnh: 20 tệp JavaScript biên dịch sạch; `node Scripts/check-logic.js` — 142/142 PASS (125 ca cũ giữ nguyên); `node Scripts/check-demo.js` — 27/27 PASS (20 ca cũ giữ nguyên). Chạy bằng `node.real --jitless` vì trình bao bọc `node` trên thiết bị hỏng.
+- Chưa kiểm chứng bằng mắt trên trình duyệt thiết bị: tự mở `http://127.0.0.1:8899/index.html`, bấm “Dữ liệu mẫu”, thử giá vốn, lương, dự phòng, trả mua, thanh lý, kết chuyển và tab B03.
+- Chưa phát hành công khai: chỉ làm sau khi người dùng nghiệm thu và xác nhận riêng.

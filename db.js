@@ -30,12 +30,18 @@
     { code: '112', name: 'Tiền gửi ngân hàng' },
     { code: '131', name: 'Phải thu khách hàng' },
     { code: '152', name: 'Hàng hóa' },
+    { code: '211', name: 'Tài sản cố định' },
     { code: '214', name: 'Hao mòn tài sản cố định' },
+    { code: '229', name: 'Dự phòng phải thu khó đòi' },
     { code: '331', name: 'Phải trả người bán' },
     { code: '3331', name: 'Thuế GTGT đầu ra' },
+    { code: '334', name: 'Phải trả người lao động' },
+    { code: '338', name: 'Phải trả BHXH, BHYT, BHTN' },
     { code: '511', name: 'Doanh thu bán hàng' },
+    { code: '632', name: 'Giá vốn hàng bán' },
     { code: '641', name: 'Chi phí bán hàng' },
-    { code: '642', name: 'Chi phí quản lý' }
+    { code: '642', name: 'Chi phí quản lý' },
+    { code: '911', name: 'Kết chuyển kết quả kinh doanh' }
   ];
 
   var db = null;

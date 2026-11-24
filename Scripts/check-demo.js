@@ -54,6 +54,7 @@ check('có chín chứng từ', ct.vouchers.length === 9);
 var cn = DB.branch(key, 'congno');
 check('có bốn khoản công nợ', cn.records.length === 4);
 check('khoản công nợ nối hai chứng từ', cn.records[0].voucherIds.length === 2 && cn.records[0].paid === 5000000);
+check('có dự phòng công nợ', cn.provisions.length === 1 && cn.provisions[0].amount === 200000);
 
 var bh = DB.branch(key, 'banhang');
 check('có ba phiếu bán và một lần trả hàng', bh.orders.length === 3 && bh.orders[2].returns.length === 1);
@@ -64,28 +65,42 @@ check('có ba hóa đơn, tổng thuế đầu ra 608000', hd.invoices.length ==
 var mh = DB.branch(key, 'muahang');
 check('có hai phiếu mua và hai hóa đơn đầu vào', mh.purchases.length === 2 && mh.bills.length === 2);
 check('tổng thuế đầu vào 560000', sum(mh.bills, 'taxAmount') === 560000);
+check('có trả hàng mua và giảm công nợ', mh.purchases[0].returns.length === 1 && mh.purchases[0].returns[0].total === 90000);
 
 var cb = DB.branch(key, 'cashbank');
 check('có ba phiếu quỹ', cb.entries.length === 3);
+check('có bảng lương với các khoản trích', cb.payrolls.length === 1 && cb.payrolls[0].gross === 24000000 && cb.payrolls[0].hold === 1920000 && cb.payrolls[0].employer === 3200000);
 
 var ts = DB.branch(key, 'taisan');
 check('có hai tài sản đã tính khấu hao', ts.assets.length === 2 && sum(ts.assets, 'accumulated') > 0);
+check('có thanh lý tài sản có tiền thu', ts.disposals.length === 1 && ts.disposals[0].proceeds === 3000000 && ts.assets[1].disposed === true);
 
 var kho = DB.branch(key, 'tonkho');
 check('tồn kho có bốn lần xuất nhập', Object.keys(kho.stock).length === 4 && kho.movements.length === 4);
 
+var kk = DB.branch(key, 'khoaky');
 var dk = DB.branch(key, 'dinhkhoan');
 var balanced = (dk.entries || []).every(function (v) {
   var no = sum(v.lines, 'debit'), co = sum(v.lines, 'credit');
   return no > 0 && no === co;
 });
 check('có ba phiếu định khoản, mỗi phiếu cân bằng', dk.entries.length === 3 && balanced);
-var nhatKy = global.Ketoan.helpers.journalFrom({ ct: ct, bh: bh, mh: mh, ts: ts, dk: dk });
+var nhatKy = global.Ketoan.helpers.journalFrom({ ct: ct, bh: bh, mh: mh, ts: ts, dk: dk, cb: cb, cn: cn, kk: kk });
 check('nhật ký chung gồm bút toán định khoản', nhatKy.filter(function (e) { return e.source === 'dinhkhoan'; }).length >= 4);
+var sources = ['banhang-cogs', 'banhang-return-cogs', 'muahang-return',
+  'taisan-disposal', 'luong-accrual', 'duphong', 'khoaky-close'];
+check('nhật ký ghi đủ bảy nghiệp vụ bổ sung', sources.every(function (s) {
+  return nhatKy.some(function (e) { return e.source === s; });
+}));
+check('mọi bút toán có tài khoản và số tiền hợp lệ', nhatKy.every(function (e) {
+  return !!e.debit && !!e.credit && Number(e.amount) > 0;
+}));
 
-var kk = DB.branch(key, 'khoaky');
 check('có số dư đầu kỳ và kỳ đang mở', kk.openings.length === 2 && !kk.lockedUntil &&
   sum(kk.openings, 'amount') === 35000000);
+check('có bút toán kết chuyển cân bằng', kk.closings.length === 1 &&
+  sum(kk.closings[0].lines, 'debit') === sum(kk.closings[0].lines, 'credit') &&
+  sum(kk.closings[0].lines, 'debit') === 7200000);
 
 var ql = DB.branch(key, 'quanly');
 check('có nhật ký thay đổi dữ liệu', ql.audit.length >= 2 && ql.branches.length === 14);
