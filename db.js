@@ -174,6 +174,18 @@
     if (!has(rec.branches, name)) rec.branches[name] = fallback === undefined ? {} : clone(fallback);
     return clone(rec.branches[name]);
   }
+  // Module mới tự xin nhánh riêng của mình; không cần sửa cấu trúc cây khi mở rộng.
+  function ensureBranch(key, name, fallback) {
+    var k = keyOf(key);
+    var rec = db && db.nodes ? db.nodes[k] : null;
+    if (!rec) return fallback === undefined ? undefined : clone(fallback);
+    if (!rec.branches || typeof rec.branches !== 'object' || Array.isArray(rec.branches)) rec.branches = {};
+    if (!has(rec.branches, name)) {
+      rec.branches[name] = fallback === undefined ? {} : clone(fallback);
+      save();
+    }
+    return clone(rec.branches[name]);
+  }
   function saveBranch(key, name, value) {
     var k = keyOf(key);
     var rec = db && db.nodes ? db.nodes[k] : null;
@@ -249,6 +261,23 @@
     return n && typeof n === 'object' && !Array.isArray(n) ? Object.keys(n) : [];
   }
 
+  // Nhập lại toàn bộ kho từ bản sao lưu; chỉ nhận phiên bản cũ hơn hoặc bằng hiện tại.
+  function replaceAll(input) {
+    if (readOnly || !input || typeof input !== 'object') return false;
+    var v = Number(input.schemaVersion);
+    var nodes = input.nodes && typeof input.nodes === 'object' && !Array.isArray(input.nodes) ? input.nodes : null;
+    if (!v || v > VERSION || !nodes) return false;
+    db = {
+      schemaVersion: v,
+      updatedAt: input.updatedAt || new Date().toISOString(),
+      nodes: clone(nodes)
+    };
+    warning = '';
+    legacyList = [];
+    save();
+    return true;
+  }
+
   load();
 
   global.KetoanDB = {
@@ -262,6 +291,9 @@
     meta: meta,
     branch: branch,
     saveBranch: saveBranch,
+    ensureBranch: ensureBranch,
+    replaceAll: replaceAll,
+    defaultAccounts: function () { return clone(DEFAULT_ACCOUNTS); },
     create: create,
     rename: rename,
     remove: remove,

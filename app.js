@@ -1,40 +1,20 @@
+// Vỏ ứng dụng: quản lý danh sách công ty, pane riêng và điều phối các module.
+// Mỗi module tự chịu trách nhiệm dữ liệu và giao diện của mình.
 (function () {
   'use strict';
 
+  function foot(text) {
+    var el = document.getElementById('side-foot');
+    if (el) el.textContent = text;
+  }
+
   var DB = window.KetoanDB;
-  if (!DB) {
-    document.getElementById('side-foot').textContent = 'Không nạp được kho dữ liệu';
+  var K = window.Ketoan;
+  if (!DB || !K) {
+    foot('Không nạp được kho dữ liệu hoặc các tính năng');
     return;
   }
-
-  function nodeKey(meta) {
-    if (!meta) return '';
-    return String(meta.key || meta.mst || meta.id || '').toUpperCase();
-  }
-  function uid(prefix) { return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
-  function sig(value) { try { return JSON.stringify(value); } catch (e) { return String(value); } }
-  function money(n) { return new Intl.NumberFormat('vi-VN').format(Number(n) || 0) + ' đ'; }
-  function today() {
-    var d = new Date();
-    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-  }
-  function foot(text) { document.getElementById('side-foot').textContent = text; }
-
-  var DEFAULT_ACCOUNTS = [
-    { code: '111', name: 'Tiền mặt' },
-    { code: '112', name: 'Tiền gửi ngân hàng' },
-    { code: '331', name: 'Phải trả người bán' },
-    { code: '511', name: 'Doanh thu bán hàng' },
-    { code: '642', name: 'Chi phí quản lý' }
-  ];
-  function newData() { return { rev: 0, vouchers: [], accounts: DEFAULT_ACCOUNTS.slice() }; }
-
-  var state = {
-    tenants: DB.list(),                  // mỗi phần tử là meta của một nhánh MST trong kho chung
-    activeId: null,                      // chính là khóa nhánh MST
-    panes: {},                           // key -> pane DOM được cache lại
-    counters: { full: 0, patch: 0 }
-  };
+  var H = K.helpers;
 
   var list = document.getElementById('tenant-list');
   var count = document.getElementById('tenant-count');
@@ -44,8 +24,17 @@
   var counterFull = document.getElementById('counter-full');
   var counterPatch = document.getElementById('counter-patch');
 
+  var state = {
+    tenants: DB.list(),
+    activeId: null,
+    panes: {},
+    counters: { full: 0, patch: 0 }
+  };
+
   if (DB.memory) foot('Trình duyệt chặn lưu cục bộ — dữ liệu chỉ tồn tại đến khi đóng trang');
   else if (DB.warning) foot(DB.warning);
+
+  function nodeKey(meta) { return H.nodeKey(meta); }
 
   function updateCounters() {
     counterFull.textContent = 'Render toàn bộ: ' + state.counters.full;
@@ -53,7 +42,7 @@
   }
   function bumpPatch() { state.counters.patch++; updateCounters(); }
 
-  // ---------- Sidebar: chỉ thêm/xóa đúng một nút, không render lại toàn danh sách ----------
+  // ---------- Sidebar: chỉ thêm/xóa đúng một nút ----------
   function makeTenantButton(meta) {
     var btn = document.createElement('button');
     btn.type = 'button';
@@ -104,72 +93,86 @@
     return result.meta;
   }
 
-  // ---------- Pane riêng cho từng công ty ----------
-  function accountOptions(accounts) {
-    return (accounts || []).map(function (a) {
-      return '<option value="' + a.code + '">' + a.code + ' — ' + a.name + '</option>';
-    }).join('');
+  // ---------- Cầu nối giữa vỏ và module ----------
+  function moduleContext(pane, mod) {
+    return {
+      key: pane.key,
+      pane: pane,
+      DB: DB,
+      helpers: H,
+      module: mod,
+      foot: foot,
+      bumpPatch: bumpPatch,
+      data: function () { return H.data(pane.key, mod); },
+      save: function (value) {
+        var saved = DB.saveBranch(pane.key, mod.branch, value);
+        if (!saved) foot('Dữ liệu đang ở chế độ chỉ đọc, thay đổi chưa được lưu.');
+        return saved;
+      },
+      sync: function (name) { syncModule(pane, name, false); }
+    };
   }
 
-  function createPane(meta, data) {
+  function syncModule(pane, name, initial) {
+    var mod = K.modules[name];
+    var section = pane.modules[name];
+    if (!mod || !section || !mod.patch) return;
+    mod.patch(moduleContext(pane, mod), section, H.data(pane.key, mod), initial);
+  }
+
+  function activateModule(pane, name) {
+    if (!pane.modules[name]) return;
+    pane.activeModule = name;
+    Object.keys(pane.modules).forEach(function (n) { pane.modules[n].hidden = (n !== name); });
+    pane.root.querySelectorAll('.module-tab').forEach(function (tab) {
+      if (tab.dataset.tab === name) tab.classList.add('active');
+      else tab.classList.remove('active');
+    });
+    // Đồng bộ lại phần vừa mở, nhưng không tăng bộ đếm khi chỉ chuyển tab.
+    syncModule(pane, name, true);
+  }
+
+  function paneChrome() {
+    return '<div class="pane-head">' +
+        '<div><h2 class="pane-title"></h2><p class="pane-sub"></p></div>' +
+        '<button class="btn ghost btn-rename" type="button">Đổi tên</button>' +
+      '</div>' +
+      '<nav class="module-tabs" aria-label="Các phần của công ty"></nav>' +
+      '<div class="module-body"></div>';
+  }
+
+  function createPane(meta) {
     var key = nodeKey(meta);
     var root = document.createElement('section');
     root.className = 'tenant-pane';
     root.id = 'pane-' + key;
     root.dataset.id = key;
-    root.innerHTML =
-      '<div class="pane-head">' +
-        '<div><h2 class="pane-title"></h2><p class="pane-sub"></p></div>' +
-        '<button class="btn ghost btn-rename" type="button">Đổi tên</button>' +
-      '</div>' +
-      '<div class="stats">' +
-        '<div class="stat"><label>Số chứng từ</label><b data-stat="count">0</b></div>' +
-        '<div class="stat"><label>Tổng thu</label><b data-stat="in">0 đ</b></div>' +
-        '<div class="stat"><label>Tổng chi</label><b data-stat="out">0 đ</b></div>' +
-      '</div>' +
-      '<div class="card">' +
-        '<h3>Chứng từ</h3>' +
-        '<form class="voucher-form">' +
-          '<input type="date" name="date" required>' +
-          '<input name="note" placeholder="Diễn giải" required maxlength="120">' +
-          '<select name="account">' + accountOptions(data.accounts) + '</select>' +
-          '<select name="kind"><option value="in">Thu</option><option value="out">Chi</option></select>' +
-          '<input name="amount" type="number" min="0" step="1000" placeholder="Số tiền" required>' +
-          '<button class="btn primary" type="submit">Thêm</button>' +
-        '</form>' +
-        '<table class="vtable"><thead><tr><th>Ngày</th><th>Diễn giải</th><th>Tài khoản</th><th>Số tiền</th></tr></thead>' +
-          '<tbody></tbody></table>' +
-      '</div>';
+    root.innerHTML = paneChrome();
     workspace.appendChild(root);
 
-    var pane = { key: key, root: root, sigs: {} };
+    var pane = { key: key, root: root, sigs: {}, modules: {}, activeModule: 'chungtu' };
+    patchMeta(pane, meta, true);
+    var tabBar = root.querySelector('.module-tabs');
+    var body = root.querySelector('.module-body');
 
-    var form = root.querySelector('.voucher-form');
-    form.elements['date'].value = today();
-    form.addEventListener('submit', function (e) {
-      e.preventDefault();
-      var f = e.currentTarget.elements;
-      var voucher = {
-        id: uid('v'),
-        date: f['date'].value,
-        note: f['note'].value.trim(),
-        account: f['account'].value,
-        kind: f['kind'].value,
-        amount: Number(f['amount'].value)
-      };
-      if (!voucher.note || !voucher.date || !(voucher.amount > 0)) return;
+    K.list().forEach(function (mod) {
+      var ctx = moduleContext(pane, mod);
+      var section = document.createElement('div');
+      section.className = 'module-section';
+      section.dataset.module = mod.name;
+      section.hidden = true;
+      section.innerHTML = mod.mount ? mod.mount(ctx) : '';
+      body.appendChild(section);
+      pane.modules[mod.name] = section;
+      if (mod.bind) mod.bind(ctx, section);
 
-      // Đọc đúng nhánh MST, ghi lại nhánh chứng từ rồi chỉ vá hai phần thay đổi.
-      var current = DB.branch(pane.key, 'chungtu', newData());
-      current.rev = (current.rev || 0) + 1;
-      current.vouchers.push(voucher);
-      DB.saveBranch(pane.key, 'chungtu', current);
-
-      e.currentTarget.reset();
-      form.elements['date'].value = today();
-
-      patchStats(pane, current);
-      patchVouchers(pane, current);
+      var tab = document.createElement('button');
+      tab.type = 'button';
+      tab.className = 'module-tab';
+      tab.dataset.tab = mod.name;
+      tab.textContent = mod.label || mod.name;
+      tab.addEventListener('click', function () { activateModule(pane, mod.name); });
+      tabBar.appendChild(tab);
     });
 
     root.querySelector('.btn-rename').addEventListener('click', function () {
@@ -183,18 +186,15 @@
       patchMeta(pane, saved);
     });
 
-    // Lần đầu tạo pane: render đầy đủ một lần, các lần sau chỉ patch.
-    patchMeta(pane, meta, true);
-    patchStats(pane, data, true);
-    patchVouchers(pane, data, true);
+    K.list().forEach(function (mod) { syncModule(pane, mod.name, true); });
+    activateModule(pane, 'chungtu');
     state.counters.full++;
     updateCounters();
     return pane;
   }
 
-  // ---------- Các hàm vá theo từng phần ----------
   function patchMeta(pane, meta, initial) {
-    var s = sig(meta);
+    var s = H.sig(meta);
     if (pane.sigs.meta === s) return;
     pane.sigs.meta = s;
     pane.root.querySelector('.pane-title').textContent = meta.name;
@@ -202,57 +202,6 @@
       (meta.type === 'hkd' ? 'Hộ kinh doanh' : 'Công ty') + ' · MST: ' + (meta.mst || 'chưa có');
     var label = list.querySelector('[data-id="' + nodeKey(meta) + '"] .tname');
     if (label) label.textContent = meta.name;
-    if (!initial) bumpPatch();
-  }
-
-  function patchStats(pane, data, initial) {
-    var vouchers = data.vouchers || [];
-    var s = sig(vouchers);
-    if (pane.sigs.stats === s) return;
-    pane.sigs.stats = s;
-    var income = 0, expense = 0;
-    vouchers.forEach(function (v) {
-      if (v.kind === 'in') income += Number(v.amount) || 0;
-      else expense += Number(v.amount) || 0;
-    });
-    pane.root.querySelector('[data-stat="count"]').textContent = String(vouchers.length);
-    pane.root.querySelector('[data-stat="in"]').textContent = money(income);
-    pane.root.querySelector('[data-stat="out"]').textContent = money(expense);
-    if (!initial) bumpPatch();
-  }
-
-  function makeVoucherRow(v) {
-    var tr = document.createElement('tr');
-    tr.dataset.vid = v.id;
-    [v.date, v.note, v.account, money(v.amount)].forEach(function (text) {
-      var td = document.createElement('td');
-      td.textContent = text;
-      tr.appendChild(td);
-    });
-    return tr;
-  }
-
-  function patchVouchers(pane, data, initial) {
-    var vouchers = data.vouchers || [];
-    var s = sig(vouchers);
-    if (pane.sigs.vouchers === s) return;
-    pane.sigs.vouchers = s;
-
-    var tbody = pane.root.querySelector('.vtable tbody');
-    var rows = Array.prototype.slice.call(tbody.children);
-    if (rows.length !== vouchers.length) {
-      // Thêm mới: chỉ nối thêm một hàng. Xóa/thay đổi số lượng: chỉ dựng lại riêng tbody này.
-      if (vouchers.length < rows.length || vouchers.length - rows.length > 1) tbody.innerHTML = '';
-      for (var i = tbody.children.length; i < vouchers.length; i++) {
-        tbody.appendChild(makeVoucherRow(vouchers[i]));
-      }
-    }
-    for (var j = 0; j < vouchers.length; j++) {
-      var row = tbody.children[j];
-      if (row && row.dataset.vid !== vouchers[j].id) {
-        tbody.replaceChild(makeVoucherRow(vouchers[j]), row);
-      }
-    }
     if (!initial) bumpPatch();
   }
 
@@ -274,18 +223,15 @@
       Object.keys(state.panes).forEach(function (k) { state.panes[k].root.hidden = (k !== id); });
       pane.root.hidden = false;
     } else {
-      pane = createPane(meta, DB.branch(id, 'chungtu', newData()));
+      pane = createPane(meta);
       state.panes[id] = pane;
     }
 
     crumb.textContent = meta.name + ' · ' + (meta.type === 'hkd' ? 'Hộ kinh doanh' : 'Công ty') +
       ' · ' + (meta.mst || 'chưa có MST');
 
-    // Mỗi lần click đều đọc lại đúng nhánh MST, rồi vá metadata và dữ liệu.
     patchMeta(pane, DB.meta(id));
-    var data = DB.branch(id, 'chungtu', newData());
-    patchStats(pane, data);
-    patchVouchers(pane, data);
+    syncModule(pane, pane.activeModule || 'chungtu', false);
   }
 
   // ---------- Điều khiển thêm công ty ----------

@@ -16,3 +16,11 @@
 - Kiểm chứng máy chủ: cổng 8899 trả HTTP 200 cho `index.html`, `db.js`, `app.js`.
 - Chưa kiểm chứng bằng mắt trên trình duyệt: vẫn chưa mở được giao diện thật. Có thể tự mở `http://127.0.0.1:8899/index.html`, tạo hai công ty có MST khác nhau, thêm chứng từ rồi chuyển qua lại để xem bộ đếm “Cập nhật phần” tăng và “Render toàn bộ” đứng yên.
 - Commit: `4057b28a2482967e596234af033dccf4b95a767d`.
+
+## 2026-11-24 (khung module)
+- Nhiệm vụ mới: tách phần mềm thành các phần chạy cùng nhau trên một kho dữ liệu, dễ thêm tính năng sau này mà không đụng cấu trúc cũ.
+- Đã xong: vỏ ứng dụng chỉ lo sidebar, pane riêng và chuyển phần. Năm phần độc lập gồm chứng từ, danh mục, công nợ, báo cáo và thiết lập; mỗi phần tự lưu vào nhánh riêng của đúng mã số thuế và tự vá giao diện khi có dữ liệu mới.
+- Bổ sung: danh mục dùng chung làm nguồn tài khoản duy nhất cho chứng từ; công nợ phải thu/phải trả; báo cáo lấy số từ chứng từ và công nợ; thiết lập lưu đơn vị tiền/ký hiệu/năm và xuất/nhập toàn bộ dữ liệu.
+- Kiểm chứng bằng lệnh: kiểm cú pháp tất cả tệp sạch; `node Scripts/check-logic.js` — 47/47 PASS (giữ nguyên 31 ca cũ và thêm 16 ca cho năm phần mới).
+- Kiểm chứng máy chủ: cổng 8899 trả HTTP 200 cho toàn bộ tệp giao diện và các phần mới.
+- Chưa kiểm chứng bằng mắt trên trình duyệt: chưa mở giao diện thật. Có thể tự mở `http://127.0.0.1:8899/index.html`, tạo công ty, thử từng tab và xuất/nhập dữ liệu.

@@ -27,6 +27,7 @@ class El {
   set textContent(v) { this._text = String(v); }
   get textContent() { return this._text; }
   set innerHTML(html) {
+    this._html = String(html);
     this.children = [];
     let form = null;
     const re = /<([a-zA-Z][\w-]*)([^>]*)>/g;
@@ -35,8 +36,13 @@ class El {
       const el = new El(m[1]);
       const attrs = m[2];
       const cls = /class="([^"]*)"/.exec(attrs); if (cls) el.className = cls[1];
-      const did = /data-id="([^"]*)"/.exec(attrs); if (did) el.dataset.id = did[1];
-      const dst = /data-stat="([^"]*)"/.exec(attrs); if (dst) el.dataset.stat = dst[1];
+      const dataRe = /data-([\w-]+)="([^"]*)"/g;
+      let dm;
+      while ((dm = dataRe.exec(attrs))) {
+        const key = dm[1].replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+        el.dataset[key] = dm[2];
+      }
+      const vl = /value="([^"]*)"/.exec(attrs); if (vl) el.value = vl[1];
       const nm = /name="([^"]*)"/.exec(attrs); if (nm) { el.name = nm[1]; if (form) form.elements[nm[1]] = el; }
       if (m[1] === 'form') form = el;
       this.appendChild(el);
@@ -55,7 +61,9 @@ class El {
   }
   focus() {}
   reset() { Object.keys(this.elements).forEach(k => { this.elements[k].value = ''; }); }
+  click() {}
   querySelector(sel) { return query(this, sel)[0] || null; }
+  querySelectorAll(sel) { return query(this, sel); }
 }
 
 function walk(root, fn) {
@@ -63,8 +71,11 @@ function walk(root, fn) {
 }
 function matchOne(el, sel) {
   if (sel.startsWith('.')) return sel.slice(1).split('.').every(c => el.classList.contains(c));
-  let m = /^\[data-id="([^"]+)"\]$/.exec(sel); if (m) return el.dataset.id === m[1];
-  m = /^\[data-stat="([^"]+)"\]$/.exec(sel); if (m) return el.dataset.stat === m[1];
+  let m = /^\[data-([\w-]+)="([^"]+)"\]$/.exec(sel);
+  if (m) {
+    const key = m[1].replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+    return el.dataset[key] === m[2];
+  }
   return el.tagName === sel;
 }
 function query(root, sel) {
@@ -101,14 +112,23 @@ function boot(seed) {
     setItem: (k, v) => { storage[k] = String(v); },
     removeItem: k => { delete storage[k]; }
   };
-  const win = { prompt: () => null };
-  const sandbox = { document, localStorage, window: win, Intl, Date, String, Number, Array, Object, JSON, Math, console };
+  const win = { prompt: () => null, confirm: () => true, URL: { createObjectURL: () => '', revokeObjectURL: () => {} } };
+  const sandbox = { document, localStorage, window: win, Intl, Date, String, Number, Array, Object, JSON, Math, console, Blob: function () {} };
   vm.createContext(sandbox);
-  const dbSource = fs.readFileSync(path.join(__dirname, '..', 'db.js'), 'utf8');
-  const appSource = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
-  vm.runInContext(dbSource, sandbox, { filename: 'db.js' });
-  vm.runInContext(appSource, sandbox, { filename: 'app.js' });
-  return { ids, document, storage, localStorage, win, DB: win.KetoanDB };
+  const sources = [
+    'db.js',
+    'js/core.js',
+    'js/modules/danhmuc.js',
+    'js/modules/chungtu.js',
+    'js/modules/congno.js',
+    'js/modules/baocao.js',
+    'js/modules/caidat.js',
+    'app.js'
+  ];
+  sources.forEach(name => {
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '..', name), 'utf8'), sandbox, { filename: name });
+  });
+  return { ids, document, storage, localStorage, win, DB: win.KetoanDB, Ketoan: win.Ketoan };
 }
 
 function assert(cond, label) {
@@ -191,3 +211,59 @@ assert(oldSnap.schemaVersion === 2 && !!oldSnap.nodes['0300000003'], 'dữ liệ
 assert(oldSnap.nodes['0300000003'].branches.chungtu.vouchers[0].note === 'Thu cũ', 'dữ liệu cũ -> giữ nguyên chứng từ');
 assert(!Object.keys(oldBox.storage).some(k => k.indexOf('ketoan.v1:tenant:') === 0), 'dữ liệu cũ -> khóa cũ được dọn');
 assert(panes(oldBox).length === 1 && panes(oldBox)[0].querySelector('[data-stat="count"]').textContent === '1', 'dữ liệu cũ -> mở đúng pane khi khởi động');
+
+// ---------- Khung module: các phần mới cùng chạy trên một kho dữ liệu ----------
+function sectionOf(pane, name) { return pane.querySelectorAll('.module-section').filter(s => s.dataset.module === name)[0]; }
+function tabOf(pane, name) { return pane.querySelectorAll('.module-tab').filter(t => t.dataset.tab === name)[0]; }
+
+assert(paneA.querySelectorAll('.module-tab').map(t => t.dataset.tab).join(',') ===
+  'chungtu,danhmuc,congno,baocao,caidat', 'khung có đủ năm phần chính');
+assert(Object.keys(box.Ketoan.modules).length === 5, 'năm module cùng đăng ký vào một nơi');
+const branchesA = DB.snapshot().nodes['0100000001'].branches;
+assert(['chungtu', 'danhmuc', 'congno', 'baocao', 'caidat'].every(n => !!branchesA[n]),
+  'mỗi công ty có đủ nhánh dữ liệu riêng cho các phần');
+assert(counter(box, 'counter-full') === 'Render toàn bộ: 3', 'thêm module không render lại pane cũ');
+
+tabOf(paneA, 'danhmuc').fire('click');
+const dmSec = sectionOf(paneA, 'danhmuc');
+assert(dmSec.hidden === false && sectionOf(paneA, 'chungtu').hidden === true, 'chuyển phần -> chỉ hiện phần được chọn');
+
+const patchBefore = Number(counter(box, 'counter-patch').replace(/\D/g, ''));
+const dmForm = dmSec.querySelector('.dm-form');
+fill(dmForm, { type: 'customers', code: '', name: 'Khách A', extra: '0123456789', price: '' });
+dmForm.fire('submit');
+const dmList = dmSec.querySelector('[data-kind="customers"]');
+assert(dmList && dmList.children.filter(c => c.tagName === 'li').length === 1, 'thêm khách hàng -> hiện đúng danh sách');
+assert(Number(counter(box, 'counter-patch').replace(/\D/g, '')) > patchBefore, 'thêm danh mục -> tăng cập nhật phần');
+
+fill(dmForm, { type: 'accounts', code: '3387', name: 'Phải thu khác', extra: '', price: '' });
+dmForm.fire('submit');
+const accountField = sectionOf(paneA, 'chungtu').querySelector('.voucher-form').elements['account'];
+assert(accountField && String(accountField._html || '').indexOf('3387') >= 0, 'thêm tài khoản -> form chứng từ cập nhật');
+
+tabOf(paneA, 'congno').fire('click');
+const cnSec = sectionOf(paneA, 'congno');
+const cnForm = cnSec.querySelector('.cn-form');
+fill(cnForm, { type: 'phaiThu', partner: 'Khách A', amount: '2000000', paid: '500000', due: '2026-12-31' });
+cnForm.fire('submit');
+assert(cnSec.querySelector('.cn-table tbody').children.filter(c => c.tagName === 'tr').length === 1, 'thêm công nợ -> thêm đúng một dòng');
+assert(cnSec.querySelector('[data-cn="conThu"]').textContent.replace(/\D/g, '') === '1500000', 'công nợ -> còn thu đúng');
+
+tabOf(paneA, 'baocao').fire('click');
+const bcSec = sectionOf(paneA, 'baocao');
+assert(bcSec.querySelector('[data-report="revenue"]').textContent.replace(/\D/g, '') === '1000000',
+  'báo cáo -> doanh thu lấy từ chứng từ của đúng công ty');
+assert(bcSec.querySelector('[data-report="conThu"]').textContent.replace(/\D/g, '') === '1500000',
+  'báo cáo -> còn thu lấy từ công nợ');
+
+tabOf(paneA, 'caidat').fire('click');
+const setSec = sectionOf(paneA, 'caidat');
+const setForm = setSec.querySelector('.setup-form');
+fill(setForm, { currency: 'VND', symbol: 'HD/26', year: '2026', note: 'Kỳ thử' });
+setForm.fire('submit');
+assert(DB.getPath(['nodes', '0100000001', 'branches', 'caidat', 'donViTien']) === 'VND', 'thiết lập -> lưu đúng nhánh');
+
+const backup = DB.snapshot();
+assert(Object.keys(backup.nodes).length === 3, 'xuất dữ liệu -> bản sao có đủ công ty');
+assert(DB.replaceAll(backup) === true, 'nhập lại bản sao hợp lệ');
+assert(DB.replaceAll({ schemaVersion: 99, nodes: {} }) === false, 'từ chối bản dữ liệu phiên bản lạ');
