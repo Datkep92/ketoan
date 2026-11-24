@@ -258,6 +258,23 @@
     openTenant(nodeKey(meta));
   });
 
+  // ---------- Dữ liệu mẫu: tạo công ty mới, không đụng dữ liệu có sẵn ----------
+  var demoBtn = document.getElementById('btn-demo');
+  if (demoBtn) demoBtn.addEventListener('click', function () {
+    var demo = window.KetoanDemo;
+    var result = demo && demo.seed ? demo.seed() : null;
+    if (!result || result.error) {
+      foot(result && result.error ? result.error : 'Không tạo được dữ liệu mẫu.');
+      return;
+    }
+    foot(result.existing ? 'Công ty dữ liệu mẫu đã có — đã mở ra.' : 'Đã tạo công ty kèm dữ liệu ở mười một phần.');
+    if (result.existing) { openTenant(result.key); return; }
+    state.tenants = DB.list();
+    renderSidebar();
+    crumb.textContent = '';
+    openTenant(result.key);
+  });
+
   // ---------- Khởi động ----------
   state.tenants = DB.list();
   renderSidebar();

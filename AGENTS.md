@@ -4,6 +4,7 @@
 - Mở trực tiếp `index.html` bằng trình duyệt, hoặc phục vụ cục bộ:
   `python3 -m http.server 8899 --bind 0.0.0.0 --directory .` trong thư mục dự án rồi mở `http://127.0.0.1:8899/index.html`.
 - Không có bước build, không dùng thư viện ngoài: HTML/CSS/JS thuần. Các tệp được nạp bằng `<script>` thường để vẫn chạy khi mở bằng `file://`.
+- Nút “Dữ liệu mẫu” ở đầu sidebar tạo một công ty mẫu có đủ mười một phần (MST `0102030405`); bấm lại chỉ mở công ty đó, không ghi đè dữ liệu đã sửa.
 
 ## Cấu trúc
 - `index.html`: khung sidebar, form thêm công ty có ô mã số thuế và vùng làm việc.
@@ -12,6 +13,7 @@
 - `js/core.js`: nơi đăng ký các phần và bộ hàm dùng chung; là nguồn duy nhất lấy danh sách tài khoản, hàng hóa, khách hàng, nhà cung cấp, phiếu bán, hóa đơn, phiếu quỹ, tài sản và tồn kho.
 - `js/modules/`: mười một phần, mỗi phần một tệp, tự lo dữ liệu và giao diện riêng:
   chứng từ, danh mục, công nợ, báo cáo, thiết lập, kho, bán hàng, hóa đơn, mua hàng, quỹ / ngân hàng, tài sản.
+- `js/demo.js`: dữ liệu mẫu một chạm, chỉ ghi vào nhánh của công ty mẫu.
 - `app.js`: vỏ ứng dụng — sidebar, pane riêng từng công ty, chuyển phần và điều phối cập nhật; không chứa logic nghiệp vụ của từng phần.
 
 ## Dữ liệu lưu cục bộ
@@ -44,6 +46,7 @@
 ## Kiểm tra
 - Chạy server cục bộ, mở trình duyệt: thêm công ty có MST, thêm hàng trong kho, bán hàng, phát hành hóa đơn, rồi sang công ty khác và quay lại.
 - Kỳ vọng: bộ đếm “Cập nhật phần” tăng, “Render toàn bộ” đứng yên khi thêm dữ liệu và khi chuyển công ty cũ hoặc chuyển tab.
-- Kiểm cú pháp từng tệp: `node --check db.js`, `node --check js/core.js`, `node --check js/modules/*.js`, `node --check app.js`.
+- Kiểm cú pháp từng tệp: `node --check db.js`, `node --check js/core.js`, `node --check js/modules/*.js`, `node --check js/demo.js`, `node --check app.js`.
+- Kiểm dữ liệu mẫu: `node Scripts/check-demo.js` — mười một nhánh có bản ghi, thuế đúng, bấm lại không ghi đè.
 - Kiểm logic không cần trình duyệt: `node Scripts/check-logic.js`.
   Kỳ vọng 113 dòng PASS: gồm 98 ca cũ và 15 ca mới cho liên kết chứng từ ↔ công nợ, nhật ký chung, sổ cái, cân đối phát sinh, kết quả kinh doanh, cân đối tài sản và thuế GTGT.
