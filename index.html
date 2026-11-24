@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kế toán dịch vụ</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">KẾ TOÁN <small>dịch vụ</small></div>
+
+      <button id="btn-add-tenant" class="btn primary" type="button">+ Thêm công ty / HKD</button>
+      <form id="form-new-tenant" class="new-tenant" hidden autocomplete="off">
+        <input id="new-name" required placeholder="Tên công ty / HKD" maxlength="80">
+        <select id="new-type">
+          <option value="company">Công ty</option>
+          <option value="hkd">Hộ kinh doanh</option>
+        </select>
+        <div class="row">
+          <button class="btn primary" type="submit">Lưu</button>
+          <button class="btn ghost" type="button" id="btn-cancel-tenant">Hủy</button>
+        </div>
+      </form>
+
+      <div class="list-title">Danh sách (<span id="tenant-count">0</span>)</div>
+      <nav id="tenant-list" aria-label="Danh sách công ty"></nav>
+
+      <div class="side-foot" id="side-foot">Dữ liệu lưu trên thiết bị</div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div id="crumb">Chọn một công ty ở bên trái</div>
+        <div class="counters">
+          <span id="counter-full">Render toàn bộ: 0</span>
+          <span id="counter-patch">Cập nhật phần: 0</span>
+        </div>
+      </header>
+
+      <div id="workspace" class="workspace">
+        <div id="empty" class="empty">Chưa có công ty. Bấm “+ Thêm công ty / HKD” để bắt đầu.</div>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
