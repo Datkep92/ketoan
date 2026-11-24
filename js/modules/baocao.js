@@ -12,7 +12,8 @@
     { id: 'socai', label: 'Sổ cái' },
     { id: 'candoi', label: 'Cân đối phát sinh' },
     { id: 'kqkd', label: 'Kết quả & CĐKT' },
-    { id: 'thue', label: 'Thuế GTGT' }
+    { id: 'thue', label: 'Thuế GTGT' },
+    { id: 'bctc', label: 'Báo cáo tài chính' }
   ];
 
   var NAMES = {
@@ -61,7 +62,7 @@
           '<tbody data-report-body="socai"></tbody></table></div>' +
       '</div>' +
       '<div class="report-pane" data-report-pane="candoi" hidden>' +
-        '<div class="report-scroll"><table class="report-table"><thead><tr><th>Tài khoản</th><th>Phát sinh Nợ</th><th>Phát sinh Có</th><th>Số dư Nợ</th><th>Số dư Có</th></tr></thead>' +
+        '<div class="report-scroll"><table class="report-table"><thead><tr><th>Tài khoản</th><th>Dư đầu Nợ</th><th>Dư đầu Có</th><th>Phát sinh Nợ</th><th>Phát sinh Có</th><th>Số dư Nợ</th><th>Số dư Có</th></tr></thead>' +
           '<tbody data-report-body="candoi"></tbody></table></div>' +
         '<div class="report-grid"><div class="stat"><label>Tổng phát sinh Nợ</label><b data-report="cdpsDebit">0 đ</b></div>' +
           '<div class="stat"><label>Tổng phát sinh Có</label><b data-report="cdpsCredit">0 đ</b></div>' +
@@ -86,6 +87,17 @@
         '</div>' +
         '<p class="muted">Thuế đầu ra lấy từ hóa đơn bán, thuế đầu vào lấy từ hóa đơn mua hàng. Số âm được hiểu là thuế được khấu trừ chuyển kỳ sau.</p>' +
       '</div>' +
+      '<div class="report-pane" data-report-pane="bctc" hidden>' +
+        '<div class="report-actions"><button type="button" class="btn primary" data-report-print>In / xuất PDF</button>' +
+          '<span class="muted">In từ trình duyệt để lưu thành PDF hoặc giấy.</span></div>' +
+        '<div class="report-scroll print-area"><h4>Bảng cân đối tài chính (B01a — rút gọn)</h4>' +
+          '<table class="report-table"><thead><tr><th>Tài sản / nguồn vốn</th><th>Số cuối kỳ</th></tr></thead>' +
+          '<tbody data-report-body="b01"></tbody></table>' +
+          '<h4>Báo cáo kết quả kinh doanh (B02 — rút gọn)</h4>' +
+          '<table class="report-table"><thead><tr><th>Chỉ tiêu</th><th>Số phát sinh</th></tr></thead>' +
+          '<tbody data-report-body="b02"></tbody></table></div>' +
+        '<p class="muted">Bản rút gọn dùng cho doanh nghiệp nhỏ và vừa theo Thông tư 133/2016/TT-BTC. Số liệu cập nhật theo từng mã số thuế; in ra để đính kèm hồ sơ.</p>' +
+      '</div>' +
     '</div>';
   }
 
@@ -101,6 +113,10 @@
     }
     tabs.forEach(function (t) {
       t.addEventListener('click', function () { show(t.dataset.reportTab); });
+    });
+    var printBtn = section.querySelector('[data-report-print]');
+    if (printBtn) printBtn.addEventListener('click', function () {
+      try { global.print(); } catch (err) { ctx.foot('Trình duyệt không cho in; hãy dùng chức năng In của trình duyệt.'); }
     });
     show('tonghop');
   }
@@ -119,6 +135,8 @@
       ts: get('taisan', { assets: [] }),
       kho: get('tonkho', { stock: {} }),
       dm: get('danhmuc', { items: [] }),
+      dk: get('dinhkhoan', { entries: [] }),
+      kk: get('khoaky', { openings: [] }),
       accounts: H.accounts(ctx.key)
     };
   }
@@ -130,38 +148,10 @@
     });
   }
 
+  // Dùng chung bộ suy ra bút toán với phần Định khoản để nhật ký, sổ cái và
+  // bảng cân đối đều thấy cả chứng từ tự suy ra lẫn phiếu định khoản thêm vào.
   function journal(src) {
-    var out = [];
-    (src.ct.vouchers || []).forEach(function (v) {
-      var amount = Number(v.amount) || 0;
-      if (!(amount > 0)) return;
-      var acc = v.account || '';
-      var cash = (acc === '111' || acc === '112') ? acc : '111';
-      var other = (acc === '111' || acc === '112') ? '' : acc;
-      var from = String(v.source || '');
-      if (!other) {
-        if (from.indexOf('banhang-return') === 0) other = '511';
-        else if (from.indexOf('muahang') === 0) other = '331';
-        else if (v.kind === 'in') other = /thu/i.test(v.note || '') ? '3387' : '511';
-        else other = /tra|hoàn|mua/i.test(v.note || '') ? '331' : '642';
-      }
-      if (v.kind === 'in') addEntry(out, v.date, v.note, cash, other, amount, from || 'chungtu');
-      else addEntry(out, v.date, v.note, other, cash, amount, from || 'chungtu');
-    });
-    (src.bh.orders || []).forEach(function (o) {
-      var paid = Number(o.paid) || 0;
-      (o.returns || []).forEach(function (r) { paid -= Number(r.refund) || 0; });
-      var remain = H.roundMoney((Number(o.amount) || 0) - (Number(o.returned) || 0) - paid);
-      if (remain > 0) addEntry(out, o.date, 'Công nợ bán ' + (o.ma || o.id), '131', '511', remain, 'banhang');
-    });
-    (src.mh.purchases || []).forEach(function (p) {
-      var total = Number(p.total) || 0;
-      if (total > 0) addEntry(out, p.date, 'Mua hàng ' + (p.ma || p.id), '152', '331', total, 'muahang');
-    });
-    var dep = 0;
-    (src.ts.assets || []).forEach(function (a) { dep += Number(a.accumulated) || 0; });
-    if (dep > 0) addEntry(out, '', 'Khấu hao tài sản', '642', '214', dep, 'taisan');
-    return out;
+    return H.journalFrom(src);
   }
 
   function nameMap(src) {
@@ -208,7 +198,16 @@
       debitTotal += e.amount;
       creditTotal += e.amount;
     });
-    var codes = Object.keys(byAccount).sort();
+    var openings = {};
+    (src.kk.openings || []).forEach(function (o) {
+      var code = String(o.account || '');
+      if (!code) return;
+      if (!openings[code]) openings[code] = { debit: 0, credit: 0 };
+      openings[code][o.side === 'co' ? 'credit' : 'debit'] += Number(o.amount) || 0;
+    });
+    var codes = Object.keys(byAccount).concat(Object.keys(openings)).filter(function (code, i, all) {
+      return all.indexOf(code) === i;
+    }).sort();
 
     var SoCai = section.querySelector('[data-report-body="socai"]');
     if (SoCai) {
@@ -231,13 +230,15 @@
     var balanceDebit = 0, balanceCredit = 0;
     if (canDoi) {
       var cd = codes.map(function (code) {
-        var acct = byAccount[code];
-        var bal = H.roundMoney(acct.debit - acct.credit);
+        var acct = byAccount[code] || { debit: 0, credit: 0 };
+        var op = openings[code] || { debit: 0, credit: 0 };
+        var bal = H.roundMoney(acct.debit + op.debit - acct.credit - op.credit);
         if (bal >= 0) balanceDebit += bal; else balanceCredit -= bal;
-        return '<tr data-report-account="' + code + '"><td>' + H.esc(codeLabel(code, names)) + '</td>' + moneyCell(acct.debit) + moneyCell(acct.credit) +
+        return '<tr data-report-account="' + code + '"><td>' + H.esc(codeLabel(code, names)) + '</td>' +
+          moneyCell(op.debit) + moneyCell(op.credit) + moneyCell(acct.debit) + moneyCell(acct.credit) +
           moneyCell(bal >= 0 ? bal : 0) + moneyCell(bal < 0 ? -bal : 0) + '</tr>';
       });
-      canDoi.innerHTML = cd.length ? cd.join('') : emptyRow(5, 'Chưa có nghiệp vụ');
+      canDoi.innerHTML = cd.length ? cd.join('') : emptyRow(7, 'Chưa có nghiệp vụ');
     }
 
     function put(key, value) {
@@ -261,8 +262,13 @@
     put('kqkdChiPhi', chiPhi);
     put('kqkdLoiNhuan', doanhThu - chiPhi);
 
+    var openNet = function (code) {
+      var op = openings[code] || { debit: 0, credit: 0 };
+      return H.roundMoney(op.debit - op.credit);
+    };
     var tien = H.roundMoney((byAccount['111'] ? byAccount['111'].debit - byAccount['111'].credit : 0) +
-      (byAccount['112'] ? byAccount['112'].debit - byAccount['112'].credit : 0));
+      (byAccount['112'] ? byAccount['112'].debit - byAccount['112'].credit : 0) +
+      openNet('111') + openNet('112'));
     var tonKho = 0;
     (src.dm.items || []).forEach(function (it) {
       tonKho += (Number((src.kho.stock || {})[it.id]) || 0) * (Number(it.price) || 0);
@@ -276,6 +282,8 @@
       var remain = (Number(r.amount) || 0) - (Number(r.paid) || 0);
       if (r.type === 'phaiTra') conTra += remain; else conThu += remain;
     });
+    conThu = H.roundMoney(conThu + openNet('131'));
+    conTra = H.roundMoney(conTra - openNet('331'));
     var dauRa = 0, dauVao = 0;
     (src.hd.invoices || []).forEach(function (inv) { dauRa += Number(inv.taxAmount) || 0; });
     (src.mh.bills || []).forEach(function (b) { dauVao += Number(b.taxAmount) || 0; });
@@ -289,6 +297,39 @@
     put('thueDauRa', dauRa);
     put('thueDauVao', dauVao);
     put('thuePhaiNop', dauRa - dauVao);
+
+    function reportLine(label, value, bold) {
+      return '<tr' + (bold ? ' class="total"' : '') + '><td>' + H.esc(label) + '</td>' +
+        (value === '' ? '<td></td>' : moneyCell(value)) + '</tr>';
+    }
+    var thuePhaiNop = H.roundMoney(Math.max(0, dauRa - dauVao));
+    var b01 = section.querySelector('[data-report-body="b01"]');
+    if (b01) {
+      b01.innerHTML = [
+        reportLine('A. Tài sản', '', true),
+        reportLine('Tiền mặt và tiền gửi ngân hàng', tien),
+        reportLine('Hàng hóa tồn kho', H.roundMoney(tonKho)),
+        reportLine('Tài sản cố định ròng', H.roundMoney(taiSanRong)),
+        reportLine('Phải thu khách hàng', conThu),
+        reportLine('Tổng tài sản', taiSan, true),
+        reportLine('B. Nguồn vốn', '', true),
+        reportLine('Phải trả người bán', conTra),
+        reportLine('Thuế phải nộp', thuePhaiNop),
+        reportLine('Vốn chủ sở hữu', H.roundMoney(taiSan - no)),
+        reportLine('Tổng nguồn vốn', taiSan, true)
+      ].join('');
+    }
+    var b02 = section.querySelector('[data-report-body="b02"]');
+    if (b02) {
+      b02.innerHTML = [
+        reportLine('Doanh thu bán hàng và cung cấp dịch vụ', doanhThu),
+        reportLine('Chi phí bán hàng và quản lý', chiPhi),
+        reportLine('Lợi nhuận trước thuế', H.roundMoney(doanhThu - chiPhi), true),
+        reportLine('Thuế GTGT đầu ra', dauRa),
+        reportLine('Thuế GTGT đầu vào', dauVao),
+        reportLine('Thuế GTGT phải nộp', H.roundMoney(dauRa - dauVao), true)
+      ].join('');
+    }
   }
 
   function patch(ctx, section, data, initial) {
@@ -298,7 +339,8 @@
       bh: src.bh.orders || [], stock: src.kho.stock || {},
       items: src.dm.items || [], hd: src.hd.invoices || [],
       mua: src.mh.purchases || [], muaHd: src.mh.bills || [],
-      taiSan: src.ts.assets || [], accounts: src.accounts || []
+      taiSan: src.ts.assets || [], accounts: src.accounts || [],
+      dk: src.dk.entries || [], kk: src.kk.openings || []
     });
     if (ctx.pane.sigs['baocao.tonghop'] === s) return;
     ctx.pane.sigs['baocao.tonghop'] = s;

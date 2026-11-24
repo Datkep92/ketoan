@@ -140,6 +140,147 @@
     return { module: 'congno', value: cn };
   }
 
+  // ---------- Nghiệp vụ mở rộng ----------
+  // Các hàm này không thay cách lưu cũ: định khoản mới là nguồn bút toán bổ sung,
+  // chứng từ/bán hàng/mua hàng cũ vẫn được suy ra như trước để dữ liệu cũ không mất.
+  function monthOf(date) { return String(date || '').slice(0, 7); }
+
+  function lockUntil(key) {
+    var kk = modules.khoaky ? data(key, modules.khoaky) : {};
+    return kk && kk.lockedUntil ? String(kk.lockedUntil) : '';
+  }
+
+  function isLocked(key, date) {
+    var until = lockUntil(key);
+    var month = monthOf(date);
+    return !!(until && month && month <= until);
+  }
+
+  function audit(key, action, detail) {
+    var mod = modules.quanly;
+    if (!mod) return;
+    var store = data(key, mod);
+    if (!Array.isArray(store.audit)) store.audit = [];
+    store.audit.unshift({
+      id: uid('log'), at: new Date().toISOString(),
+      action: String(action || ''), detail: String(detail || '')
+    });
+    if (store.audit.length > 200) store.audit.length = 200;
+    save(key, mod, store);
+  }
+
+  // Chặn ghi vào kỳ đã khóa trước khi module thay đổi dữ liệu.
+  function guard(ctx, date, action) {
+    if (isReadOnly()) {
+      if (ctx && ctx.foot) ctx.foot('Dữ liệu đang ở chế độ chỉ đọc, thay đổi chưa được lưu.');
+      return false;
+    }
+    if (isLocked(ctx.key, date)) {
+      if (ctx && ctx.foot) ctx.foot('Kỳ ' + monthOf(date) + ' đã khóa. Vào phần Khóa kỳ & số dư để mở kỳ.');
+      return false;
+    }
+    if (action) audit(ctx.key, action, monthOf(date));
+    return true;
+  }
+
+  function updateIn(key, modName, id, patch) {
+    var mod = modules[modName];
+    if (!mod) return null;
+    var store = data(key, mod);
+    var field = mod.recordField || 'records';
+    var rows = Array.isArray(store[field]) ? store[field] : [];
+    var found = null;
+    rows.forEach(function (row) { if (row && row.id === id) found = row; });
+    if (!found) return null;
+    Object.keys(patch || {}).forEach(function (k) { found[k] = patch[k]; });
+    found.updatedAt = new Date().toISOString();
+    return { module: modName, value: store };
+  }
+
+  function removeFrom(key, modName, id) {
+    var mod = modules[modName];
+    if (!mod) return null;
+    var store = data(key, mod);
+    var field = mod.recordField || 'records';
+    var rows = Array.isArray(store[field]) ? store[field] : [];
+    var next = rows.filter(function (row) { return !row || row.id !== id; });
+    if (next.length === rows.length) return null;
+    store[field] = next;
+    store.updatedAt = new Date().toISOString();
+    return { module: modName, value: store };
+  }
+
+  function addEntry(out, date, note, debit, credit, amount, source) {
+    out.push({
+      date: date || '', note: note || '', debit: debit || '', credit: credit || '',
+      amount: roundMoney(amount), source: source || ''
+    });
+  }
+
+  // Suy ra bút toán từ các nghiệp vụ đã có; phần định khoản thêm vào sau cùng.
+  function journalFrom(src) {
+    var out = [];
+    var ct = src.ct || {}, bh = src.bh || {}, mh = src.mh || {}, ts = src.ts || {}, dk = src.dk || {};
+    (ct.vouchers || []).forEach(function (v) {
+      var amount = Number(v.amount) || 0;
+      if (!(amount > 0)) return;
+      var acc = v.account || '';
+      var cash = (acc === '111' || acc === '112') ? acc : '111';
+      var other = (acc === '111' || acc === '112') ? '' : acc;
+      var from = String(v.source || '');
+      if (!other) {
+        if (from.indexOf('banhang-return') === 0) other = '511';
+        else if (from.indexOf('muahang') === 0) other = '331';
+        else if (v.kind === 'in') other = /thu/i.test(v.note || '') ? '3387' : '511';
+        else other = /tra|hoàn|mua/i.test(v.note || '') ? '331' : '642';
+      }
+      if (v.kind === 'in') addEntry(out, v.date, v.note, cash, other, amount, from || 'chungtu');
+      else addEntry(out, v.date, v.note, other, cash, amount, from || 'chungtu');
+    });
+    (bh.orders || []).forEach(function (o) {
+      var paid = Number(o.paid) || 0;
+      (o.returns || []).forEach(function (r) { paid -= Number(r.refund) || 0; });
+      var remain = roundMoney((Number(o.amount) || 0) - (Number(o.returned) || 0) - paid);
+      if (remain > 0) addEntry(out, o.date, 'Công nợ bán ' + (o.ma || o.id), '131', '511', remain, 'banhang');
+    });
+    (mh.purchases || []).forEach(function (p) {
+      var total = Number(p.total) || 0;
+      if (total > 0) addEntry(out, p.date, 'Mua hàng ' + (p.ma || p.id), '152', '331', total, 'muahang');
+    });
+    var dep = 0;
+    (ts.assets || []).forEach(function (a) { dep += Number(a.accumulated) || 0; });
+    if (dep > 0) addEntry(out, '', 'Khấu hao tài sản', '642', '214', dep, 'taisan');
+
+    (dk.entries || []).forEach(function (v) {
+      var lines = Array.isArray(v.lines) ? v.lines : [];
+      var debits = [], credits = [];
+      lines.forEach(function (l) {
+        var d = roundMoney(Number(l.debit) || 0);
+        var c = roundMoney(Number(l.credit) || 0);
+        if (d > 0) debits.push({ account: String(l.account || ''), amount: d });
+        else if (c > 0) credits.push({ account: String(l.account || ''), amount: c });
+      });
+      var ci = 0, used = 0;
+      debits.forEach(function (d) {
+        var need = d.amount;
+        while (need > 0.009 && ci < credits.length) {
+          var take = Math.min(need, roundMoney(credits[ci].amount - used));
+          if (!(take > 0)) { ci++; used = 0; continue; }
+          addEntry(out, v.date, (v.so ? v.so + ' ' : '') + (v.note || ''), d.account, credits[ci].account, take, 'dinhkhoan');
+          need = roundMoney(need - take);
+          used = roundMoney(used + take);
+          if (used >= credits[ci].amount - 0.009) { ci++; used = 0; }
+        }
+      });
+    });
+    return out;
+  }
+
+  function openingsOf(key) {
+    var kk = modules.khoaky ? data(key, modules.khoaky) : {};
+    return kk && Array.isArray(kk.openings) ? kk.openings : [];
+  }
+
   global.Ketoan = {
     register: register,
     modules: modules,
@@ -171,7 +312,17 @@
       roundMoney: roundMoney,
       nextCode: nextCode,
       commit: commit,
-      linkCongNo: linkCongNo
+      linkCongNo: linkCongNo,
+      monthOf: monthOf,
+      lockUntil: lockUntil,
+      isLocked: isLocked,
+      guard: guard,
+      audit: audit,
+      updateIn: updateIn,
+      removeFrom: removeFrom,
+      journalFrom: journalFrom,
+      openingsOf: openingsOf,
+      addEntry: addEntry
     }
   };
 })(typeof window !== 'undefined' ? window : this);

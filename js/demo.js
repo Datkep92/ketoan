@@ -1,4 +1,4 @@
-// Dữ liệu mẫu một chạm: tạo một công ty và điền đủ mười một phần để xem thử giao diện.
+// Dữ liệu mẫu một chạm: tạo một công ty và điền đủ mười bốn phần để xem thử giao diện.
 // Chỉ ghi vào nhánh của công ty mới; không đụng đến dữ liệu có sẵn.
 (function (global) {
   'use strict';
@@ -126,6 +126,41 @@
       updatedAt: STAMP
     };
 
+    var dinhkhoan = {
+      entries: [
+        { id: 'dk-demo-1', so: 'DK/26-001', date: '2026-11-10', note: 'Chi phí thuê văn phòng', lines: [
+          { account: '641', debit: 5000000, credit: 0 }, { account: '111', debit: 0, credit: 5000000 }
+        ], updatedAt: STAMP },
+        { id: 'dk-demo-2', so: 'DK/26-002', date: '2026-11-19', note: 'Doanh thu tư vấn chưa thu', lines: [
+          { account: '131', debit: 3000000, credit: 0 }, { account: '511', debit: 0, credit: 3000000 }
+        ], updatedAt: STAMP },
+        { id: 'dk-demo-3', so: 'DK/26-003', date: '2026-11-25', note: 'Thu đa công nợ và doanh thu', lines: [
+          { account: '111', debit: 10000000, credit: 0 },
+          { account: '131', debit: 0, credit: 6000000 },
+          { account: '511', debit: 0, credit: 4000000 }
+        ], updatedAt: STAMP }
+      ],
+      updatedAt: STAMP
+    };
+
+    var khoaky = {
+      lockedUntil: '',
+      openings: [
+        { id: 'kk-demo-1', account: '111', side: 'no', amount: 20000000, note: 'Số dư tiền đầu năm', createdAt: STAMP },
+        { id: 'kk-demo-2', account: '331', side: 'co', amount: 15000000, note: 'Số dư phải trả đầu năm', createdAt: STAMP }
+      ],
+      updatedAt: STAMP
+    };
+
+    var quanly = {
+      branches: ['chungtu', 'danhmuc', 'congno', 'baocao', 'caidat', 'tonkho', 'banhang', 'hoadon', 'muahang', 'cashbank', 'taisan', 'dinhkhoan', 'khoaky', 'quanly'],
+      audit: [
+        { id: 'log-demo-1', at: STAMP, action: 'Tạo công ty mẫu', detail: NAME },
+        { id: 'log-demo-2', at: STAMP, action: 'Tạo dữ liệu mẫu', detail: 'mười bốn phần' }
+      ],
+      updatedAt: STAMP
+    };
+
     var writes = [
       ['caidat', { donViTien: 'VNĐ', kyHieu: 'HD/2026', nam: 2026, ghiChu: 'Dữ liệu mẫu để xem giao diện' }],
       ['danhmuc', danhmuc],
@@ -137,6 +172,9 @@
       ['hoadon', hoadon],
       ['cashbank', cashbank],
       ['taisan', taisan],
+      ['dinhkhoan', dinhkhoan],
+      ['khoaky', khoaky],
+      ['quanly', quanly],
       ['baocao', { updatedAt: STAMP }]
     ];
 

@@ -36,11 +36,11 @@ class El {
       const el = new El(m[1]);
       const attrs = m[2];
       const cls = /class="([^"]*)"/.exec(attrs); if (cls) el.className = cls[1];
-      const dataRe = /data-([\w-]+)="([^"]*)"/g;
+      const dataRe = /data-([\w-]+)(?:="([^"]*)")?/g;
       let dm;
       while ((dm = dataRe.exec(attrs))) {
         const key = dm[1].replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-        el.dataset[key] = dm[2];
+        el.dataset[key] = dm[2] === undefined ? '' : dm[2];
       }
       const vl = /value="([^"]*)"/.exec(attrs); if (vl) el.value = vl[1];
       const nm = /name="([^"]*)"/.exec(attrs); if (nm) { el.name = nm[1]; if (form) form.elements[nm[1]] = el; }
@@ -71,9 +71,10 @@ function walk(root, fn) {
 }
 function matchOne(el, sel) {
   if (sel.startsWith('.')) return sel.slice(1).split('.').every(c => el.classList.contains(c));
-  let m = /^\[data-([\w-]+)="([^"]+)"\]$/.exec(sel);
+  let m = /^\[data-([\w-]+)(?:="([^"]*)")?\]$/.exec(sel);
   if (m) {
     const key = m[1].replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+    if (m[2] === undefined) return Object.prototype.hasOwnProperty.call(el.dataset, key);
     return el.dataset[key] === m[2];
   }
   return el.tagName === sel;
@@ -113,6 +114,8 @@ function boot(seed) {
     removeItem: k => { delete storage[k]; }
   };
   const win = { prompt: () => null, confirm: () => true, URL: { createObjectURL: () => '', revokeObjectURL: () => {} } };
+  win.document = document;
+  win.Blob = function () {};
   const sandbox = { document, localStorage, window: win, Intl, Date, String, Number, Array, Object, JSON, Math, console, Blob: function () {} };
   vm.createContext(sandbox);
   const sources = [
@@ -129,6 +132,9 @@ function boot(seed) {
     'js/modules/muahang.js',
     'js/modules/cashbank.js',
     'js/modules/taisan.js',
+    'js/modules/dinhkhoan.js',
+    'js/modules/khoaky.js',
+    'js/modules/quanly.js',
     'app.js'
   ];
   sources.forEach(name => {
@@ -223,11 +229,11 @@ function sectionOf(pane, name) { return pane.querySelectorAll('.module-section')
 function tabOf(pane, name) { return pane.querySelectorAll('.module-tab').filter(t => t.dataset.tab === name)[0]; }
 
 assert(paneA.querySelectorAll('.module-tab').map(t => t.dataset.tab).join(',') ===
-  'chungtu,danhmuc,congno,baocao,caidat,tonkho,banhang,hoadon,muahang,cashbank,taisan', 'khung có đủ mười một phần');
-assert(Object.keys(box.Ketoan.modules).length === 11, 'mười một module cùng đăng ký vào một nơi');
+  'chungtu,dinhkhoan,danhmuc,congno,baocao,khoaky,caidat,tonkho,banhang,hoadon,muahang,cashbank,taisan,quanly', 'khung có đủ mười bốn phần');
+assert(Object.keys(box.Ketoan.modules).length === 14, 'mười bốn module cùng đăng ký vào một nơi');
 const branchesA = DB.snapshot().nodes['0100000001'].branches;
-assert(['chungtu', 'danhmuc', 'congno', 'baocao', 'caidat', 'tonkho', 'banhang', 'hoadon',
-  'muahang', 'cashbank', 'taisan'].every(n => !!branchesA[n]),
+assert(['chungtu', 'dinhkhoan', 'danhmuc', 'congno', 'baocao', 'khoaky', 'caidat', 'tonkho', 'banhang', 'hoadon',
+  'muahang', 'cashbank', 'taisan', 'quanly'].every(n => !!branchesA[n]),
   'mỗi công ty có đủ nhánh dữ liệu riêng cho các phần');
 assert(counter(box, 'counter-full') === 'Render toàn bộ: 3', 'thêm module không render lại pane cũ');
 
@@ -456,7 +462,7 @@ assert(cnLinkedIndex >= 0 && cnCells.some(c => c.dataset.cnLinks === '1'),
 
 tabOf(paneA, 'baocao').fire('click');
 const bcSec2 = sectionOf(paneA, 'baocao');
-assert(bcSec2.querySelectorAll('.report-tab').length === 6, 'báo cáo -> có đủ sáu tab');
+assert(bcSec2.querySelectorAll('.report-tab').length === 7, 'báo cáo -> có đủ bảy tab');
 const patchBeforeTabs = Number(counter(box, 'counter-patch').replace(/\D/g, ''));
 bcSec2.querySelector('[data-report-tab="nhatky"]').fire('click');
 assert(bcSec2.querySelector('[data-report-pane="nhatky"]').hidden === false &&
@@ -485,3 +491,78 @@ assert(num('thueDauRa') === 40000 && num('thueDauVao') === 20000 && num('thuePha
   'thuế GTGT -> tính đúng thuế đầu ra, đầu vào và phải nộp');
 assert(Number(counter(box, 'counter-patch').replace(/\D/g, '')) === patchBeforeTabs,
   'chuyển tab phụ báo cáo -> KHÔNG render lại, KHÔNG tăng cập nhật phần');
+
+// ---------- Định khoản, khóa kỳ, quản lý dữ liệu và báo cáo tài chính ----------
+function setDkLines(section, debitAccount, creditAccount, amount) {
+  const host = section.querySelector('[data-dk-lines]');
+  host.children[0]._acc.value = debitAccount;
+  host.children[0]._debit.value = String(amount);
+  host.children[0]._credit.value = '';
+  host.children[1]._acc.value = creditAccount;
+  host.children[1]._debit.value = '';
+  host.children[1]._credit.value = String(amount);
+  host.fire('change');
+}
+
+tabOf(paneA, 'dinhkhoan').fire('click');
+const dkSec = sectionOf(paneA, 'dinhkhoan');
+const dkForm = dkSec.querySelector('.dk-form');
+fill(dkForm, { date: '2026-11-29', note: 'Trích khấu hao TSCĐ' });
+setDkLines(dkSec, '641', '214', 1000000);
+assert(dkSec.querySelector('[data-dk-live]').textContent.indexOf('Đã cân đối') >= 0,
+  'định khoản -> tổng Nợ/Có hiện trạng thái cân đối');
+dkForm.fire('submit');
+const dkList = branchOf('dinhkhoan').entries;
+const dkSum = list => list.reduce((n, l) => n + (Number(l.debit) || 0) + (Number(l.credit) || 0), 0);
+assert(dkList.length === 1 && dkSum(dkList[0].lines) === 2000000 && dkList[0].note === 'Trích khấu hao TSCĐ',
+  'lưu định khoản -> phiếu cân bằng được ghi vào đúng nhánh');
+
+tabOf(paneA, 'baocao').fire('click');
+bcSec2.querySelector('[data-report-tab="nhatky"]').fire('click');
+assert(bcSec2.querySelector('[data-report-body="nhatky"]').children.some(
+  r => r.dataset.reportSource === 'dinhkhoan'), 'nhật ký chung -> hiện bút toán định khoản');
+bcSec2.querySelector('[data-report-tab="bctc"]').fire('click');
+assert(bcSec2.querySelector('[data-report-pane="bctc"]').hidden === false &&
+  bcSec2.querySelector('[data-report-body="b01"]').children.length >= 10 &&
+  bcSec2.querySelector('[data-report-body="b02"]').children.length >= 6,
+  'báo cáo tài chính -> B01a/B02 rút gọn có đủ dòng');
+assert(num('cdktTaiSan') === num('cdktNo') + num('cdktVon'),
+  'báo cáo tài chính -> tổng tài sản bằng nguồn vốn');
+bcSec2.querySelector('[data-report-print]').fire('click');
+
+tabOf(paneA, 'khoaky').fire('click');
+const kkSec = sectionOf(paneA, 'khoaky');
+fill(kkSec.querySelector('.kk-form'), { account: '111', side: 'no', amount: '500000', note: 'Tiền mặt đầu kỳ' });
+kkSec.querySelector('.kk-form').fire('submit');
+assert(branchOf('khoaky').openings.length === 1 && branchOf('khoaky').openings[0].amount === 500000,
+  'số dư đầu kỳ -> thêm đúng tài khoản và số tiền');
+kkSec.querySelector('.kk-lock-form').elements['ky'].value = '2026-12';
+kkSec.querySelector('[data-kk-act="lock"]').fire('click');
+assert(branchOf('khoaky').lockedUntil === '2026-12' &&
+  kkSec.querySelector('[data-kk="status"]').textContent.indexOf('2026-12') >= 0,
+  'khóa kỳ -> trạng thái kỳ được cập nhật');
+
+tabOf(paneA, 'dinhkhoan').fire('click');
+fill(dkForm, { date: '2026-11-30', note: 'Bút toán sau khi khóa' });
+setDkLines(dkSec, '111', '131', 100000);
+dkForm.fire('submit');
+assert(branchOf('dinhkhoan').entries.length === 1, 'kỳ đã khóa -> từ chối thêm định khoản');
+tabOf(paneA, 'khoaky').fire('click');
+kkSec.querySelector('[data-kk-act="unlock"]').fire('click');
+assert(!branchOf('khoaky').lockedUntil, 'mở kỳ -> kỳ trở lại trạng thái đang mở');
+
+tabOf(paneA, 'quanly').fire('click');
+const qlSec = sectionOf(paneA, 'quanly');
+const qlRows = qlSec.querySelector('[data-ql-body="list"]').children;
+assert(qlRows.length > 0 && qlSec.querySelector('[data-ql-body="audit"]').children.length > 0,
+  'quản lý dữ liệu -> hiện bản ghi và nhật ký thay đổi');
+qlRows[0].children[4].children[0].fire('click');
+const qlEdit = qlSec.querySelector('[data-ql-edit] .ql-edit-form');
+assert(!!qlEdit, 'quản lý dữ liệu -> mở được trình sửa bản ghi');
+const noteInput = qlEdit.children.filter(i => i._field === 'note')[0];
+noteInput.value = 'Đã sửa qua quản lý';
+qlEdit.fire('submit');
+assert(branchOf('chungtu').vouchers.some(v => v.note === 'Đã sửa qua quản lý') &&
+  branchOf('quanly').audit.some(l => l.action.indexOf('Sửa Chứng từ') >= 0),
+  'quản lý dữ liệu -> sửa bản ghi và ghi nhật ký');
+qlSec.querySelector('[data-ql-export]').fire('click');

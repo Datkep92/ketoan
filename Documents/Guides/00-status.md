@@ -45,3 +45,10 @@
 - Nguồn số liệu báo cáo lấy từ đúng nhánh mã số thuế hiện tại; tổng Nợ bằng tổng Có; doanh thu đã trừ hàng trả; thuế phải nộp là thuế đầu ra trừ đầu vào.
 - Kiểm chứng bằng lệnh: kiểm cú pháp toàn bộ tệp JavaScript sạch; `node Scripts/check-logic.js` — 113/113 PASS (98 ca cũ giữ nguyên, thêm 15 ca mới).
 - Chưa kiểm chứng bằng mắt trên trình duyệt thiết bị: tự mở `http://127.0.0.1:8899/index.html`, tạo công ty, thêm khoản công nợ, thêm chứng từ có chọn khoản đó, rồi mở lần lượt sáu tab Báo cáo và quan sát bộ đếm trên cùng.
+
+## Bổ sung (mười bốn phần, hướng tới phát hành)
+- Nhiệm vụ: hoàn thiện nghiệp vụ còn thiếu theo Thông tư 133/2016/TT-BTC — định khoản Nợ/Có, khóa kỳ, số dư đầu kỳ, sửa/xóa bản ghi có nhật ký và báo cáo tài chính in được.
+- Đã xong: thêm ba phần Định khoản, Khóa kỳ, Quản lý dữ liệu; mỗi công ty giờ có mười bốn nhánh riêng. Định khoản chặn phiếu chưa cân bằng; khóa kỳ chặn mọi thay đổi trong kỳ đã khóa; số dư đầu kỳ vào đúng cột số dư đầu kỳ của bảng cân đối. Báo cáo có tab thứ bảy gồm B01a/B02 rút gọn và nút In. Dữ liệu mẫu có đủ mười bốn nhánh.
+- Kiểm chứng bằng lệnh: kiểm cú pháp toàn bộ tệp JavaScript sạch; `node Scripts/check-logic.js` — 125/125 PASS (113 ca cũ giữ nguyên, thêm 12 ca mới); `node Scripts/check-demo.js` — 20/20 PASS. Máy chủ cục bộ trả HTTP 200 cho mọi tệp giao diện, gồm ba phần mới.
+- Chưa kiểm chứng bằng mắt trên trình duyệt thiết bị: tự mở `http://127.0.0.1:8899/index.html`, bấm “Dữ liệu mẫu”, thử định khoản, khóa kỳ rồi thêm bút toán (phải bị chặn), mở lại kỳ, sửa bản ghi trong “Quản lý dữ liệu” và mở tab “Báo cáo tài chính” để in.
+- Chưa phát hành công khai: chưa đóng gói, chưa đẩy kho và chưa công bố; cần xác nhận riêng trước khi làm.

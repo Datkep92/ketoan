@@ -18,7 +18,9 @@ var files = [
   'js/modules/danhmuc.js', 'js/modules/chungtu.js', 'js/modules/congno.js',
   'js/modules/baocao.js', 'js/modules/caidat.js', 'js/modules/tonkho.js',
   'js/modules/banhang.js', 'js/modules/hoadon.js', 'js/modules/muahang.js',
-  'js/modules/cashbank.js', 'js/modules/taisan.js', 'js/demo.js'
+  'js/modules/cashbank.js', 'js/modules/taisan.js',
+  'js/modules/dinhkhoan.js', 'js/modules/khoaky.js', 'js/modules/quanly.js',
+  'js/demo.js'
 ];
 files.forEach(function (file) {
   vm.runInThisContext(fs.readFileSync(path.join(root, file), 'utf8'), { filename: file });
@@ -41,7 +43,7 @@ var first = D.seed();
 check('tạo được công ty mẫu', !!first && !!first.key && first.existing === false);
 var key = first.key;
 var node = DB.node(key);
-check('công ty có đủ mười một nhánh', !!node && Object.keys(node.branches).length === 11);
+check('công ty có đủ mười bốn nhánh', !!node && Object.keys(node.branches).length === 14);
 
 var dm = DB.branch(key, 'danhmuc');
 check('danh mục có hàng hóa và khách hàng', dm.items.length === 4 && dm.customers.length === 3 && dm.suppliers.length === 2);
@@ -71,6 +73,22 @@ check('có hai tài sản đã tính khấu hao', ts.assets.length === 2 && sum(
 
 var kho = DB.branch(key, 'tonkho');
 check('tồn kho có bốn lần xuất nhập', Object.keys(kho.stock).length === 4 && kho.movements.length === 4);
+
+var dk = DB.branch(key, 'dinhkhoan');
+var balanced = (dk.entries || []).every(function (v) {
+  var no = sum(v.lines, 'debit'), co = sum(v.lines, 'credit');
+  return no > 0 && no === co;
+});
+check('có ba phiếu định khoản, mỗi phiếu cân bằng', dk.entries.length === 3 && balanced);
+var nhatKy = global.Ketoan.helpers.journalFrom({ ct: ct, bh: bh, mh: mh, ts: ts, dk: dk });
+check('nhật ký chung gồm bút toán định khoản', nhatKy.filter(function (e) { return e.source === 'dinhkhoan'; }).length >= 4);
+
+var kk = DB.branch(key, 'khoaky');
+check('có số dư đầu kỳ và kỳ đang mở', kk.openings.length === 2 && !kk.lockedUntil &&
+  sum(kk.openings, 'amount') === 35000000);
+
+var ql = DB.branch(key, 'quanly');
+check('có nhật ký thay đổi dữ liệu', ql.audit.length >= 2 && ql.branches.length === 14);
 
 var snapshot = JSON.stringify(DB.snapshot());
 var second = D.seed();

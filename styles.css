@@ -189,6 +189,38 @@ body {
 .report-table th { font-size: 11px; text-transform: uppercase; color: var(--muted); letter-spacing: .4px; }
 .report-table td.num { text-align: right; }
 
+/* Định khoản, khóa kỳ và quản lý dữ liệu */
+.dk-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin-bottom: 14px; }
+.dk-form input, .dk-form select, .dk-lines input, .dk-lines select, .dk-tools input,
+.kk-form input, .kk-form select, .kk-lock-form input, .ql-edit input, .ql-edit select {
+  width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 10px; font: inherit; background: #fff;
+}
+.dk-form label, .kk-form label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }
+.dk-lines { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; }
+.dk-line { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 6px; align-items: center; }
+.dk-form-foot, .dk-tools, .kk-lock-form, .ql-tools, .report-actions {
+  grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+}
+.dk-total { color: var(--muted); font-size: 12px; }
+.dk-tools input { flex: 1; min-width: 140px; }
+.dk-table { min-width: 760px; }
+.kk-lock-form { margin-bottom: 14px; }
+.kk-lock-form input { max-width: 180px; }
+.kk-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-bottom: 14px; }
+.ql-tools { margin-bottom: 14px; }
+.ql-edit { display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr auto auto; gap: 6px; align-items: center; }
+.ql-log { max-height: 240px; overflow-y: auto; }
+.report-actions { margin-bottom: 12px; }
+.report-table tr.total td { font-weight: 700; background: #f8fafc; }
+.print-area h4 { font-size: 13px; margin: 16px 0 8px; }
+
+@media print {
+  .sidebar, .topbar, .report-tabs, .report-actions { display: none !important; }
+  body, .workspace, .pane, .module-section { overflow: visible !important; }
+  .report-pane[hidden] { display: none !important; }
+}
+
 @media (max-width: 860px) {
   .sidebar { width: 200px; flex-basis: 200px; }
   .voucher-form { grid-template-columns: 1fr 1fr; }
