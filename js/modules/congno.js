@@ -26,15 +26,16 @@
         '<div><label>Còn thu</label><b data-cn="conThu">0 đ</b></div>' +
         '<div><label>Còn trả</label><b data-cn="conTra">0 đ</b></div>' +
       '</div>' +
-      '<table class="cn-table"><thead><tr><th>Loại</th><th>Đối tượng</th><th>Phát sinh</th><th>Đã trả</th><th>Còn lại</th><th>Hạn</th></tr></thead>' +
+      '<table class="cn-table"><thead><tr><th>Loại</th><th>Đối tượng</th><th>Phát sinh</th><th>Đã trả</th><th>Còn lại</th><th>Hạn</th><th>Chứng từ</th></tr></thead>' +
         '<tbody></tbody></table>' +
-      '<p class="muted">Có thể nối chứng từ vào công nợ ở bản mở rộng sau; hiện phần này lưu số liệu tổng hợp.</p>' +
+      '<p class="muted">Vào phần Chứng từ, chọn khoản công nợ khi thêm phiếu thu/chi để tự cập nhật số đã thu/trả. Các khoản đã nối hiện ở cột cuối.</p>' +
     '</div>';
   }
 
   function rowHtml(r) {
     var remain = (Number(r.amount) || 0) - (Number(r.paid) || 0);
     var label = r.type === 'phaiTra' ? 'Phải trả' : 'Phải thu';
+    var links = Array.isArray(r.voucherIds) ? r.voucherIds : [];
     return '<tr data-cnid="' + H.esc(r.id) + '">' +
       '<td><span class="badge ' + (r.type === 'phaiTra' ? 'warn' : 'ok') + '">' + label + '</span></td>' +
       '<td>' + H.esc(r.partner) + '</td>' +
@@ -42,6 +43,7 @@
       '<td>' + H.money(r.paid) + '</td>' +
       '<td><b>' + H.money(remain) + '</b></td>' +
       '<td>' + H.esc(r.due || '—') + '</td>' +
+      '<td data-cn-links="' + links.length + '">' + (links.length ? links.length + ' chứng từ' : '—') + '</td>' +
     '</tr>';
   }
 
@@ -62,7 +64,7 @@
     section.querySelector('[data-cn="tra"]').textContent = H.money(tra);
     section.querySelector('[data-cn="conThu"]').textContent = H.money(conThu);
     section.querySelector('[data-cn="conTra"]').textContent = H.money(conTra);
-    section.querySelector('.cn-table tbody').innerHTML = records.length ? records.map(rowHtml).join('') : '<tr><td colspan="6" class="muted">Chưa có khoản công nợ</td></tr>';
+    section.querySelector('.cn-table tbody').innerHTML = records.length ? records.map(rowHtml).join('') : '<tr><td colspan="7" class="muted">Chưa có khoản công nợ</td></tr>';
     if (!initial) ctx.bumpPatch();
   }
 
@@ -82,7 +84,8 @@
         partner: partner,
         amount: amount,
         paid: Number(f['paid'].value) || 0,
-        due: f['due'].value || ''
+        due: f['due'].value || '',
+        voucherIds: []
       });
       current.updatedAt = new Date().toISOString();
       var saved = H.save(ctx.key, mod, current);

@@ -423,3 +423,65 @@ ids['tenant-list'].querySelector('[data-id="0100000001"]').fire('click');
 assert(stockOf()[itemId] === 20 && branchOf('banhang').orders.length === 1 && branchOf('hoadon').invoices.length === 1,
   'quay lại công ty A -> kho, bán hàng, hóa đơn vẫn đúng');
 assert(counter(box, 'counter-full') === 'Render toàn bộ: 3', 'thêm ba phần -> KHÔNG render lại pane cũ');
+
+// ---------- Nối chứng từ vào công nợ, sổ và báo cáo theo mẫu ----------
+tabOf(paneA, 'congno').fire('click');
+fill(cnForm, { type: 'phaiThu', partner: 'Khách B', amount: '500000', paid: '0', due: '' });
+cnForm.fire('submit');
+const linked = branchOf('congno').records.filter(r => r.partner === 'Khách B')[0];
+assert(!!linked, 'khoản công nợ để nối -> lưu đúng');
+
+tabOf(paneA, 'chungtu').fire('click');
+const ctSec2 = sectionOf(paneA, 'chungtu');
+const ctForm2 = ctSec2.querySelector('.voucher-form');
+assert(ctForm2.elements['link'] && String(ctForm2.elements['link']._html).indexOf('Khách B') >= 0,
+  'chứng từ -> danh sách công nợ được cập nhật');
+fill(ctForm2, { date: '2026-11-28', note: 'Thu khách B', account: '111', kind: 'in', amount: '200000', link: linked.id });
+ctForm2.fire('submit');
+assert(branchOf('chungtu').vouchers.length === 6 && branchOf('chungtu').vouchers[5].linkId === linked.id,
+  'nối chứng từ -> phiếu ghi đúng khoản công nợ');
+assert(branchOf('congno').records.filter(r => r.id === linked.id)[0].paid === 200000,
+  'nối phiếu thu -> tăng số đã thu của khoản công nợ');
+assert(branchOf('congno').records.filter(r => r.id === linked.id)[0].voucherIds.length === 1,
+  'nối chứng từ -> khoản công nợ giữ mã phiếu');
+const linkedRow = ctSec2.querySelector('.vtable tbody').children[5];
+assert(linkedRow && linkedRow.children[4].textContent === 'Khách B',
+  'nối chứng từ -> bảng hiện tên khoản công nợ');
+
+tabOf(paneA, 'congno').fire('click');
+const cnCells = sectionOf(paneA, 'congno').querySelector('.cn-table tbody').children;
+const cnLinkedIndex = cnCells.map((c, i) => c.dataset.cnid === linked.id ? i : -1).filter(i => i >= 0)[0];
+assert(cnLinkedIndex >= 0 && cnCells.some(c => c.dataset.cnLinks === '1'),
+  'công nợ -> hiện số chứng từ đã nối');
+
+tabOf(paneA, 'baocao').fire('click');
+const bcSec2 = sectionOf(paneA, 'baocao');
+assert(bcSec2.querySelectorAll('.report-tab').length === 6, 'báo cáo -> có đủ sáu tab');
+const patchBeforeTabs = Number(counter(box, 'counter-patch').replace(/\D/g, ''));
+bcSec2.querySelector('[data-report-tab="nhatky"]').fire('click');
+assert(bcSec2.querySelector('[data-report-pane="nhatky"]').hidden === false &&
+  bcSec2.querySelector('[data-report-pane="tonghop"]').hidden === true, 'chuyển tab báo cáo -> chỉ hiện một bảng');
+const nkRows = bcSec2.querySelector('[data-report-body="nhatky"]').children;
+assert(nkRows.length >= 7 && nkRows.some(r => r.dataset.reportSource === 'muahang'),
+  'nhật ký chung -> có các dòng nghiệp vụ');
+bcSec2.querySelector('[data-report-tab="socai"]').fire('click');
+const scBody = bcSec2.querySelector('[data-report-body="socai"]');
+assert(scBody.querySelectorAll('[data-report-account="111"]').length === 1 &&
+  scBody.querySelectorAll('[data-report-account="511"]').length === 1,
+  'sổ cái -> có tài khoản tiền và doanh thu');
+bcSec2.querySelector('[data-report-tab="candoi"]').fire('click');
+const totalDebit = Number(bcSec2.querySelector('[data-report="cdpsDebit"]').textContent.replace(/\D/g, ''));
+const totalCredit = Number(bcSec2.querySelector('[data-report="cdpsCredit"]').textContent.replace(/\D/g, ''));
+assert(totalDebit > 0 && totalDebit === totalCredit, 'cân đối phát sinh -> tổng Nợ bằng tổng Có');
+bcSec2.querySelector('[data-report-tab="kqkd"]').fire('click');
+const kqDoanhThu = Number(bcSec2.querySelector('[data-report="kqkdDoanhThu"]').textContent.replace(/\D/g, ''));
+const kqChiPhi = Number(bcSec2.querySelector('[data-report="kqkdChiPhi"]').textContent.replace(/\D/g, ''));
+const kqLoiNhuan = Number(bcSec2.querySelector('[data-report="kqkdLoiNhuan"]').textContent.replace(/\D/g, ''));
+assert(kqDoanhThu === 400000 && kqLoiNhuan === kqDoanhThu - kqChiPhi,
+  'kết quả kinh doanh -> doanh thu sau trả hàng và lợi nhuận đúng');
+bcSec2.querySelector('[data-report-tab="thue"]').fire('click');
+const num = key => Number(bcSec2.querySelector('[data-report="' + key + '"]').textContent.replace(/\D/g, ''));
+assert(num('thueDauRa') === 40000 && num('thueDauVao') === 20000 && num('thuePhaiNop') === 20000,
+  'thuế GTGT -> tính đúng thuế đầu ra, đầu vào và phải nộp');
+assert(Number(counter(box, 'counter-patch').replace(/\D/g, '')) === patchBeforeTabs,
+  'chuyển tab phụ báo cáo -> KHÔNG render lại, KHÔNG tăng cập nhật phần');

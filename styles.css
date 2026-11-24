@@ -179,6 +179,15 @@ body {
 .report-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
 .report-grid .stat b { font-size: 16px; }
 .muted { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.report-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.report-tab { border: 1px solid var(--line); background: #fff; color: var(--muted); border-radius: 999px; padding: 6px 12px; font-size: 12px; cursor: pointer; }
+.report-tab.active { background: var(--brand); border-color: var(--brand); color: #fff; }
+.report-pane[hidden] { display: none; }
+.report-scroll { overflow-x: auto; }
+.report-table { width: 100%; border-collapse: collapse; min-width: 640px; }
+.report-table th, .report-table td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.report-table th { font-size: 11px; text-transform: uppercase; color: var(--muted); letter-spacing: .4px; }
+.report-table td.num { text-align: right; }
 
 @media (max-width: 860px) {
   .sidebar { width: 200px; flex-basis: 200px; }

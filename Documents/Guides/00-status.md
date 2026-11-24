@@ -38,3 +38,10 @@
 - Kiểm chứng bằng lệnh: kiểm cú pháp toàn bộ tệp sạch; `node Scripts/check-logic.js` — 98/98 PASS (74 ca cũ giữ nguyên, thêm 24 ca mới).
 - Kiểm chứng máy chủ: cổng 8899 trả HTTP 200 cho toàn bộ tệp giao diện, gồm ba phần mới.
 - Chưa kiểm chứng bằng mắt trên trình duyệt thiết bị: chưa mở giao diện thật. Có thể tự mở `http://127.0.0.1:8899/index.html`, tạo công ty, thử Mua hàng → Quỹ → Tài sản → Báo cáo, rồi vào Bán hàng thử trả hàng và xem lại tồn kho.
+
+## Bổ sung (liên kết chứng từ và báo cáo dùng ngay)
+- Nhiệm vụ: nối chứng từ vào công nợ và hoàn thiện các sổ/báo cáo có thể dùng ngay cho nghiệp vụ kế toán.
+- Đã xong: phiếu thu/chi có ô chọn khoản công nợ; lưu phiếu tự cộng vào số đã thu/trả, giữ mã phiếu liên kết trên khoản công nợ và hiện số chứng từ trên bảng công nợ. Phần Báo cáo có sáu tab: tổng hợp, nhật ký chung, sổ cái, cân đối phát sinh, kết quả kinh doanh & cân đối tài sản, thuế GTGT. Chuyển tab con của báo cáo chỉ ẩn/hiện bảng, không tạo lại pane và không tăng bộ đếm “Cập nhật phần”.
+- Nguồn số liệu báo cáo lấy từ đúng nhánh mã số thuế hiện tại; tổng Nợ bằng tổng Có; doanh thu đã trừ hàng trả; thuế phải nộp là thuế đầu ra trừ đầu vào.
+- Kiểm chứng bằng lệnh: kiểm cú pháp toàn bộ tệp JavaScript sạch; `node Scripts/check-logic.js` — 113/113 PASS (98 ca cũ giữ nguyên, thêm 15 ca mới).
+- Chưa kiểm chứng bằng mắt trên trình duyệt thiết bị: tự mở `http://127.0.0.1:8899/index.html`, tạo công ty, thêm khoản công nợ, thêm chứng từ có chọn khoản đó, rồi mở lần lượt sáu tab Báo cáo và quan sát bộ đếm trên cùng.

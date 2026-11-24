@@ -124,6 +124,22 @@
     return true;
   }
 
+  // Nối một phiếu thu/chi vào khoản công nợ đang chọn. Trả về bản ghi cần lưu
+  // để bên gọi đưa vào cùng một lần commit với chứng từ.
+  function linkCongNo(key, voucher) {
+    if (!voucher || !voucher.linkId || !modules.congno) return null;
+    var cn = data(key, modules.congno);
+    var found = null;
+    (cn.records || []).forEach(function (r) { if (r.id === voucher.linkId) found = r; });
+    if (!found) return null;
+    if (!Array.isArray(found.voucherIds)) found.voucherIds = [];
+    found.voucherIds.push(voucher.id);
+    var match = (voucher.kind === 'in' && found.type !== 'phaiTra') ||
+      (voucher.kind === 'out' && found.type === 'phaiTra');
+    if (match) found.paid = roundMoney((Number(found.paid) || 0) + (Number(voucher.amount) || 0));
+    return { module: 'congno', value: cn };
+  }
+
   global.Ketoan = {
     register: register,
     modules: modules,
@@ -154,7 +170,8 @@
       taiSan: taiSan,
       roundMoney: roundMoney,
       nextCode: nextCode,
-      commit: commit
+      commit: commit,
+      linkCongNo: linkCongNo
     }
   };
 })(typeof window !== 'undefined' ? window : this);
