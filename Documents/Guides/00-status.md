@@ -15,3 +15,4 @@
 - Kiểm chứng bằng lệnh: `node --check app.js`, `node --check db.js` sạch; `node Scripts/check-logic.js` — 31/31 PASS.
 - Kiểm chứng máy chủ: cổng 8899 trả HTTP 200 cho `index.html`, `db.js`, `app.js`.
 - Chưa kiểm chứng bằng mắt trên trình duyệt: vẫn chưa mở được giao diện thật. Có thể tự mở `http://127.0.0.1:8899/index.html`, tạo hai công ty có MST khác nhau, thêm chứng từ rồi chuyển qua lại để xem bộ đếm “Cập nhật phần” tăng và “Render toàn bộ” đứng yên.
+- Commit: `4057b28a2482967e596234af033dccf4b95a767d`.
