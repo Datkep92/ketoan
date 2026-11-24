@@ -143,8 +143,9 @@ body {
 .module-section { width: 100%; }
 .module-card .stats { margin-top: 0; }
 
-.dm-form, .cn-form, .setup-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-bottom: 14px; }
-.dm-form input, .dm-form select, .cn-form input, .cn-form select, .setup-form input, .import-text {
+.dm-form, .cn-form, .setup-form, .kho-form, .kho-adjust, .bh-form, .hd-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-bottom: 14px; }
+.dm-form input, .dm-form select, .cn-form input, .cn-form select, .setup-form input, .import-text,
+.kho-form input, .kho-adjust input, .kho-adjust select, .bh-form input, .bh-form select, .hd-form input, .hd-form select {
   width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: inherit; background: #fff;
 }
 .setup-form label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }

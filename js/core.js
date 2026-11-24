@@ -69,6 +69,21 @@
     return DB && DB.defaultAccounts ? DB.defaultAccounts() : [];
   }
 
+  // Các phần mới đọc danh mục và kho theo đúng mã số thuế, không tạo bản sao.
+  function listFrom(key, modName, field) {
+    var mod = modules[modName];
+    var value = mod ? data(key, mod) : null;
+    return value && Array.isArray(value[field]) ? value[field].slice() : [];
+  }
+  function hangHoa(key) { return listFrom(key, 'danhmuc', 'items'); }
+  function khachHang(key) { return listFrom(key, 'danhmuc', 'customers'); }
+  function donBan(key) { return listFrom(key, 'banhang', 'orders'); }
+  function tonKho(key) {
+    var mod = modules.tonkho;
+    var value = mod ? data(key, mod) : null;
+    return value && value.stock && typeof value.stock === 'object' && !Array.isArray(value.stock) ? value.stock : {};
+  }
+
   global.Ketoan = {
     register: register,
     modules: modules,
@@ -82,7 +97,11 @@
       esc: esc,
       data: data,
       save: save,
-      accounts: accounts
+      accounts: accounts,
+      hangHoa: hangHoa,
+      khachHang: khachHang,
+      donBan: donBan,
+      tonKho: tonKho
     }
   };
 })(typeof window !== 'undefined' ? window : this);

@@ -24,3 +24,10 @@
 - Kiểm chứng bằng lệnh: kiểm cú pháp tất cả tệp sạch; `node Scripts/check-logic.js` — 47/47 PASS (giữ nguyên 31 ca cũ và thêm 16 ca cho năm phần mới).
 - Kiểm chứng máy chủ: cổng 8899 trả HTTP 200 cho toàn bộ tệp giao diện và các phần mới.
 - Chưa kiểm chứng bằng mắt trên trình duyệt: chưa mở giao diện thật. Có thể tự mở `http://127.0.0.1:8899/index.html`, tạo công ty, thử từng tab và xuất/nhập dữ liệu.
+
+## 2026-11-24 (kho, bán hàng, hóa đơn)
+- Nhiệm vụ mới: bổ sung các tính năng cơ bản còn thiếu là kho, bán hàng và hóa đơn, rồi nối ba phần này với chứng từ, công nợ và báo cáo có sẵn.
+- Đã xong: tám phần cùng chạy trên một kho dữ liệu, mỗi phần một nhánh riêng theo từng mã số thuế. Kho thêm hàng vào danh mục và chặn xuất quá tồn; bán hàng trừ tồn, ghi phiếu thu phần đã thu và công nợ phần chưa thu; hóa đơn tự tạo số theo ký hiệu trong thiết lập, chặn trùng số, tính thuế vào tổng; báo cáo thêm doanh thu bán, giá trị tồn kho và tổng hóa đơn.
+- Kiểm chứng bằng lệnh: kiểm cú pháp toàn bộ tệp sạch; `node Scripts/check-logic.js` — 74/74 PASS (47 ca cũ giữ nguyên, thêm 27 ca mới).
+- Kiểm chứng máy chủ: cổng 8899 trả HTTP 200 cho toàn bộ tệp giao diện, gồm ba phần mới.
+- Chưa kiểm chứng bằng mắt trên trình duyệt thiết bị: chưa mở giao diện thật. Có thể tự mở `http://127.0.0.1:8899/index.html`, tạo công ty, vào Kho thêm hàng, vào Bán hàng lập phiếu, vào Hóa đơn phát hành, rồi xem Báo cáo và thử chuyển công ty qua lại.
