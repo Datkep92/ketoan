@@ -45,6 +45,15 @@
         '<th>Tên đăng nhập</th><th>Hiển thị</th><th>Quyền</th><th></th></tr></thead>' +
         '<tbody data-user-body="list"></tbody></table></div>' +
       '<p class="muted">Quản trị: toàn quyền. Kế toán: mọi nghiệp vụ, trừ thiết lập, người dùng, khóa kỳ và xuất/nhập dữ liệu. Chỉ xem: không ghi dữ liệu.</p>' +
+    '</div>' +
+    '<div class="card module-card self-pass-card">' +
+      '<h3>Mật khẩu của tôi</h3>' +
+      '<form class="self-pass-form">' +
+        '<input name="old" type="password" placeholder="Mật khẩu hiện tại" required maxlength="60">' +
+        '<input name="next" type="password" placeholder="Mật khẩu mới (tối thiểu 4 ký tự)" required minlength="4" maxlength="60">' +
+        '<button class="btn" type="submit">Đổi mật khẩu</button>' +
+      '</form>' +
+      '<p class="muted">Mọi tài khoản, kể cả người chỉ xem, đều tự đổi được mật khẩu của mình.</p>' +
     '</div>';
   }
 
@@ -140,6 +149,20 @@
         fr.readAsText(file);
       } else {
         ctx.foot('Trình duyệt này không hỗ trợ đọc tệp.');
+      }
+    });
+
+    var selfForm = section.querySelector('.self-pass-form');
+    if (selfForm) selfForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var user = DB.currentUser();
+      if (!user) { ctx.foot('Hãy đăng nhập trước khi đổi mật khẩu.'); return; }
+      var f = e.currentTarget.elements;
+      var result = DB.changePassword(user.name, f['old'].value, f['next'].value);
+      ctx.foot(result && result.ok ? 'Đã đổi mật khẩu.' : (result && result.error) || 'Không đổi được mật khẩu.');
+      if (result && result.ok) {
+        e.currentTarget.reset();
+        H.audit(ctx.key, 'user.pass.self', 'Tài khoản ' + user.name + ' tự đổi mật khẩu');
       }
     });
 

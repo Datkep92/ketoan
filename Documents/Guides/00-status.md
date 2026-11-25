@@ -66,3 +66,10 @@
 - Kiểm chứng bằng lệnh: 20 tệp JavaScript biên dịch sạch; `node Scripts/check-logic.js` — 149/149 PASS (125 ca cũ, 17 ca TT133 và 7 ca mới); `node Scripts/check-demo.js` — 27/27 PASS; `git diff --check` sạch. Chạy bằng `node.real --jitless`.
 - Chưa kiểm chứng bằng mắt trên trình duyệt thiết bị: tự mở `http://127.0.0.1:8899/index.html`, bấm “Dữ liệu mẫu”, thử phát hành hóa đơn có thu tiền, mua tài sản, khóa kỳ rồi thêm chứng từ, và bấm “Lập phiếu nộp thuế” trên tab Thuế GTGT.
 - Chưa phát hành công khai: chỉ làm sau khi người dùng nghiệm thu và xác nhận riêng.
+
+## Bổ sung (2026-11-25: sổ tay người dùng và khóa nghiệp vụ cuối)
+- Nhiệm vụ: lấp các tác vụ còn thiếu trước khi nghiệm thu công khai, vẫn giữ mười bốn phần và bảy tab báo cáo.
+- Đã xong: mọi vai trò tự đổi mật khẩu trong Thiết lập (kiểm mật khẩu cũ, đổi có hiệu lực ngay); sao lưu/khôi phục dữ liệu giữ nguyên tài khoản đăng nhập; phiếu chứng từ thêm tay có nút hủy, hủy thì đảo số đã thu/trả trên công nợ, bỏ mã liên kết và loại phiếu khỏi tổng hợp/sổ; đối chiếu sao kê ngân hàng theo tài khoản và tháng, lưu chênh lệch và ghi đè khi đối chiếu lại cùng kỳ.
+- Kiểm chứng bằng lệnh: 20 tệp JavaScript biên dịch sạch; `node.real --jitless Scripts/check-logic.js` — 172/172 PASS (149 ca cũ, 11 ca đợt trước và 12 ca mới); `node.real --jitless Scripts/check-demo.js` — 27/27 PASS; `git diff --check` sạch. Vẫn giữ đúng mười bốn phần và bảy tab (do chính ca kiểm xác nhận).
+- Chưa kiểm chứng bằng mắt trên trình duyệt thiết bị: tự mở `http://127.0.0.1:8899/index.html`, đăng nhập `admin/admin`, đổi mật khẩu rồi đổi lại; thêm chứng từ có nối công nợ rồi bấm hủy; vào Quỹ / ngân hàng đối chiếu sao kê một tháng.
+- Chưa phát hành công khai: chỉ làm sau khi người dùng nghiệm thu và xác nhận riêng.

@@ -279,11 +279,16 @@
     var v = Number(input.schemaVersion);
     var nodes = input.nodes && typeof input.nodes === 'object' && !Array.isArray(input.nodes) ? input.nodes : null;
     if (!v || v > VERSION || !nodes) return false;
-    db = {
+    var next = {
       schemaVersion: v,
       updatedAt: input.updatedAt || new Date().toISOString(),
       nodes: clone(nodes)
     };
+    // Bản sao cũ có thể không chứa tài khoản: giữ tài khoản hiện tại để không
+    // bị khóa ra khỏi chính dữ liệu vừa khôi phục.
+    if (Array.isArray(input.users) && input.users.length) next.users = clone(input.users);
+    else if (Array.isArray(db.users) && db.users.length) next.users = clone(db.users);
+    db = next;
     warning = '';
     legacyList = [];
     save();
@@ -343,6 +348,31 @@
       if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(NS + ':user');
     } catch (e) { /* bỏ qua */ }
   }
+  // Tự đổi mật khẩu: mọi vai trò đều làm được, không cần quyền quản lý người dùng.
+  function changePassword(name, oldPass, newPass) {
+    var typed = String(name || '').trim().toLowerCase();
+    var list = users();
+    var found = list.filter(function (u) {
+      return String(u.name || '').toLowerCase() === typed;
+    })[0];
+    if (!found) return { ok: false, error: 'Không tìm thấy tài khoản.' };
+    if (String(found.pass || '') !== String(oldPass || '')) {
+      return { ok: false, error: 'Mật khẩu hiện tại không đúng.' };
+    }
+    var next = String(newPass || '');
+    if (next.length < 4) return { ok: false, error: 'Mật khẩu mới phải có ít nhất 4 ký tự.' };
+    found.pass = next;
+    if (!saveUsers(list)) return { ok: false, error: 'Không lưu được mật khẩu.' };
+    if (sessionUser && String(sessionUser.name || '').toLowerCase() === typed) {
+      sessionUser = clone(found);
+      try {
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.setItem(NS + ':user', JSON.stringify(sessionUser));
+        }
+      } catch (e) { /* bỏ qua */ }
+    }
+    return { ok: true };
+  }
 
   load();
 
@@ -373,6 +403,7 @@
     saveUsers: saveUsers,
     signIn: signIn,
     signOut: signOut,
+    changePassword: changePassword,
     currentUser: currentUser
   };
 })(typeof window !== 'undefined' ? window : this);

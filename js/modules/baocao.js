@@ -185,8 +185,9 @@
       var mod = K.modules[name];
       return mod ? H.data(ctx.key, mod) : fallback;
     }
+    var ctData = get('chungtu', { vouchers: [] });
     return {
-      ct: get('chungtu', { vouchers: [] }),
+      ct: Object.assign({}, ctData, { vouchers: H.activeVouchers(ctData.vouchers) }),
       cb: get('cashbank', { entries: [], payrolls: [] }),
       cn: get('congno', { records: [] }),
       bh: get('banhang', { orders: [] }),

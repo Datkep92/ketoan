@@ -45,7 +45,7 @@
           '<button class="btn primary" type="submit">Thêm</button>' +
         '</form>' +
         '<p class="muted">Chọn một khoản công nợ để nối phiếu thu/chi. Phiếu thu giảm nợ phải thu, phiếu chi giảm nợ phải trả.</p>' +
-        '<table class="vtable"><thead><tr><th>Ngày</th><th>Diễn giải</th><th>Tài khoản</th><th>Số tiền</th><th>Công nợ</th></tr></thead>' +
+        '<table class="vtable"><thead><tr><th>Ngày</th><th>Diễn giải</th><th>Tài khoản</th><th>Số tiền</th><th>Công nợ</th><th></th></tr></thead>' +
           '<tbody></tbody></table>' +
       '</div>';
   }
@@ -53,11 +53,23 @@
   function makeRow(v, links) {
     var tr = document.createElement('tr');
     tr.dataset.vid = v.id;
-    [v.date, v.note, v.account, H.money(v.amount), (v.linkId && links[v.linkId]) || '—'].forEach(function (text) {
+    tr.dataset.voided = v.voided ? '1' : '';
+    var note = String(v.note || '') + (v.voided ? ' (đã hủy)' : '');
+    [v.date, note, v.account, H.money(v.amount), (v.linkId && links[v.linkId]) || '—'].forEach(function (text) {
       var td = document.createElement('td');
       td.textContent = text;
       tr.appendChild(td);
     });
+    var action = document.createElement('td');
+    if (!v.voided && !v.source && H.can('write')) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn small';
+      btn.dataset.void = v.id;
+      btn.textContent = 'Hủy';
+      action.appendChild(btn);
+    } else action.textContent = v.voided ? 'Đã hủy' : '—';
+    tr.appendChild(action);
     return tr;
   }
 
@@ -89,7 +101,7 @@
     if (ctx.pane.sigs['chungtu.stats'] === s) return;
     ctx.pane.sigs['chungtu.stats'] = s;
     var income = 0, expense = 0;
-    vouchers.forEach(function (v) {
+    H.activeVouchers(vouchers).forEach(function (v) {
       if (v.kind === 'in') income += Number(v.amount) || 0;
       else expense += Number(v.amount) || 0;
     });
@@ -112,12 +124,16 @@
     for (var i = tbody.children.length; i < vouchers.length; i++) tbody.appendChild(makeRow(vouchers[i], links));
     for (var j = 0; j < vouchers.length; j++) {
       var row = tbody.children[j];
-      if (row && row.dataset.vid !== vouchers[j].id) tbody.replaceChild(makeRow(vouchers[j], links), row);
+      if (row && (row.dataset.vid !== vouchers[j].id ||
+        row.dataset.voided !== (vouchers[j].voided ? '1' : ''))) {
+        tbody.replaceChild(makeRow(vouchers[j], links), row);
+      }
     }
     if (!initial) ctx.bumpPatch();
   }
 
   function bind(ctx, section) {
+    var tbody = section.querySelector('.vtable tbody');
     var form = section.querySelector('.voucher-form');
     form.elements['date'].value = H.today();
     form.addEventListener('submit', function (e) {
@@ -146,6 +162,31 @@
       form.elements['date'].value = H.today();
       var linkAfter = form.elements['link'];
       if (linkAfter) linkAfter.value = '';
+      patchStats(ctx, section, current, false);
+      patchVouchers(ctx, section, current, false);
+    });
+
+    tbody.addEventListener('click', function (e) {
+      var target = e.target;
+      var btn = null;
+      while (target && target !== section) {
+        if (target.dataset && target.dataset.void) { btn = target; break; }
+        target = target.parent;
+      }
+      if (!btn) return;
+      var current = H.data(ctx.key, mod);
+      var found = null;
+      (current.vouchers || []).forEach(function (v) { if (v.id === btn.dataset.void) found = v; });
+      if (!found || found.voided || found.source) return;
+      if (!H.guard(ctx, found.date, 'Hủy chứng từ')) return;
+      found.voided = true;
+      found.voidedAt = H.today();
+      found.voidBy = (H.currentUser() || {}).name || '';
+      current.rev = (current.rev || 0) + 1;
+      var writes = [{ module: 'chungtu', value: current }];
+      var unlinked = H.unlinkCongNo(ctx.key, found);
+      if (unlinked) writes.push(unlinked);
+      if (!H.commit(ctx.key, writes, ctx, 'Đã hủy chứng từ.')) return;
       patchStats(ctx, section, current, false);
       patchVouchers(ctx, section, current, false);
     });

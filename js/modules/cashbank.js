@@ -6,7 +6,7 @@
   var H = K.helpers;
 
   function defaults() {
-    return { entries: [], payrolls: [], updatedAt: '' };
+    return { entries: [], payrolls: [], reconciliations: [], updatedAt: '' };
   }
 
   function accountOptions(list) {
@@ -54,6 +54,18 @@
         '<table class="cb-payroll-table"><thead><tr><th>Kỳ</th><th>Tổng lương</th>' +
           '<th>Khấu trừ</th><th>Đơn vị trích</th><th>Thực lãnh</th></tr></thead><tbody></tbody></table>' +
         '<p class="muted">Khấu trừ gồm BHXH, BHYT, BHTN giữ lại từ lương; đơn vị trích thêm được ghi vào chi phí. Chọn «Đã chi» để ghi chứng từ và phiếu quỹ.</p>' +
+      '</div>' +
+      '<div class="card module-card">' +
+        '<h3>Đối chiếu sao kê</h3>' +
+        '<form class="cb-recon-form">' +
+          '<select name="account"></select>' +
+          '<input name="month" type="month" required>' +
+          '<input name="statement" type="number" step="1000" placeholder="Số dư sao kê">' +
+          '<button class="btn" type="submit">Đối chiếu</button>' +
+        '</form>' +
+        '<table class="cb-recon-table"><thead><tr><th>Tài khoản</th><th>Tháng</th><th>Sổ</th><th>Sao kê</th><th>Chênh lệch</th></tr></thead>' +
+          '<tbody></tbody></table>' +
+        '<p class="muted">Nhập số dư trên sao kê đến cuối tháng. Chênh lệch bằng số sao kê trừ số dư sổ; đối chiếu lại cùng tháng sẽ ghi đè kết quả cũ.</p>' +
       '</div>';
   }
 
@@ -82,7 +94,8 @@
     var entries = data.entries || [];
     var payrolls = data.payrolls || [];
     var accounts = H.accounts(ctx.key).map(function (a) { return { code: a.code, name: a.name }; });
-    var s = H.sig({ e: entries, a: accounts, p: payrolls });
+    var reconciliations = data.reconciliations || [];
+    var s = H.sig({ e: entries, a: accounts, p: payrolls, r: reconciliations });
     if (ctx.pane.sigs['cashbank.data'] === s) return;
     ctx.pane.sigs['cashbank.data'] = s;
 
@@ -120,6 +133,19 @@
         }).join('')
       : '<div><label>Số dư</label><b>0 đ</b></div>';
     section.querySelector('.cb-form').elements['account'].innerHTML = accountOptions(accounts);
+    var reconForm = section.querySelector('.cb-recon-form');
+    if (reconForm) {
+      reconForm.elements['account'].innerHTML = accountOptions(accounts);
+      if (!reconForm.elements['month'].value) reconForm.elements['month'].value = H.monthOf(H.today());
+      section.querySelector('.cb-recon-table tbody').innerHTML = reconciliations.length
+        ? reconciliations.map(function (r) {
+            var diff = H.roundMoney((Number(r.statement) || 0) - (Number(r.book) || 0));
+            return '<tr><td>' + H.esc(r.account || '') + '</td><td>' + H.esc(r.month || '') + '</td>' +
+              '<td>' + H.money(r.book) + '</td><td>' + H.money(r.statement) + '</td>' +
+              '<td><b class="' + (diff ? 'warn' : 'ok') + '">' + H.money(diff) + '</b></td></tr>';
+          }).join('')
+        : '<tr><td colspan="5" class="muted">Chưa đối chiếu lần nào</td></tr>';
+    }
     if (!initial) ctx.bumpPatch();
   }
 
@@ -229,6 +255,35 @@
       patch(ctx, section, current, false);
       ctx.sync('chungtu');
       ctx.sync('baocao');
+    });
+
+    var reconForm = section.querySelector('.cb-recon-form');
+    if (!reconForm) return;
+    reconForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (!H.can('write')) { ctx.foot('Bạn không có quyền ghi dữ liệu.'); return; }
+      var f = e.currentTarget.elements;
+      var month = String(f['month'].value || '').slice(0, 7);
+      if (!/^\d{4}-\d{2}$/.test(month)) { ctx.foot('Chọn tháng đối chiếu.'); return; }
+      var statement = H.roundMoney(Number(f['statement'].value) || 0);
+      var account = String(f['account'].value || '111');
+      var current = H.data(ctx.key, mod);
+      if (!Array.isArray(current.reconciliations)) current.reconciliations = [];
+      var book = H.bankBalance(current.entries, account, month);
+      var row = {
+        id: H.uid('dc'), account: account, month: month,
+        statement: statement, book: book,
+        diff: H.roundMoney(statement - book), at: new Date().toISOString()
+      };
+      current.reconciliations = current.reconciliations.filter(function (r) {
+        return !(r.account === account && r.month === month);
+      });
+      current.reconciliations.push(row);
+      current.updatedAt = new Date().toISOString();
+      if (!H.commit(ctx.key, [{ module: 'cashbank', value: current }], ctx,
+        'Đã đối chiếu ' + account + ' tháng ' + month + '.')) return;
+      H.audit(ctx.key, 'cashbank.reconcile', 'Đối chiếu ' + account + ' tháng ' + month);
+      patch(ctx, section, current, false);
     });
   }
 

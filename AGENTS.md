@@ -51,6 +51,9 @@
 - Công nợ: bảng tuổi nợ theo nhóm quá hạn; sổ chi tiết công nợ nằm trong tab tổng hợp báo cáo.
 - Báo cáo bổ sung trong bảy tab hiện có: bảng lương, bảng khấu hao, tờ khai thuế GTGT rút gọn và thuyết minh B02/B03.
 - Quản lý dữ liệu: xuất/nhập CSV có kèm mã bản ghi; nhập lại cùng tệp không tạo bản ghi trùng và không ghi đè bản ghi cũ. Nhật ký thay đổi ghi tên người dùng đang đăng nhập.
+- Đổi mật khẩu: mọi vai trò tự đổi trong Thiết lập; phải nhập đúng mật khẩu hiện tại, mật khẩu mới có hiệu lực ngay. Sao lưu/khôi phục dữ liệu không làm mất danh sách tài khoản.
+- Chứng từ: phiếu thêm tay có nút hủy; hủy phiếu đã nối công nợ thì đảo lại số đã thu/trả và bỏ liên kết, phiếu hủy được loại khỏi tổng hợp và sổ.
+- Quỹ / ngân hàng: đối chiếu sao kê theo tài khoản và tháng, lưu số dư sổ, số dư sao kê và chênh lệch; đối chiếu lại cùng kỳ thì ghi đè kết quả cũ.
 
 ## Nguyên tắc render
 - Mỗi công ty có một vùng `.tenant-pane` riêng, cache trong `state.panes` theo khóa MST.
@@ -65,5 +68,5 @@
 - Kiểm cú pháp 20 tệp (lõi, mười bốn phần, dữ liệu mẫu và hai tập lệnh kiểm): biên dịch từng tệp bằng `new vm.Script(...)` trong một lệnh `node.real --jitless -e`.
 - Kiểm dữ liệu mẫu: `node Scripts/check-demo.js` — 27 dòng PASS (20 ca cũ giữ nguyên, thêm 7 ca cho nghiệp vụ mới).
 - Kiểm logic không cần trình duyệt: `node Scripts/check-logic.js`.
-  Kỳ vọng 160 dòng PASS: giữ nguyên 149 ca cũ, thêm 11 ca cho đăng nhập/phân quyền, nhật ký người dùng, định giá FIFO/bình quân, tuổi nợ, sổ chi tiết và nhập CSV chống trùng.
+  Kỳ vọng 172 dòng PASS: giữ nguyên 160 ca trước, thêm 12 ca cho đổi mật khẩu, hủy chứng từ đã nối công nợ và đối chiếu sao kê ngân hàng.
 - Trên thiết bị này `node --check` bị Bus error; dùng `node.real --jitless` như trên.

@@ -156,6 +156,42 @@
     return { module: 'congno', value: cn };
   }
 
+  // Phiếu đã hủy vẫn được giữ lại để tra cứu nhưng không vào sổ, báo cáo và thống kê.
+  function activeVouchers(list) {
+    return (list || []).filter(function (v) {
+      return v && !v.voided && (Number(v.amount) || 0) > 0;
+    });
+  }
+
+  // Đảo lại liên kết công nợ khi hủy phiếu thu/chi.
+  function unlinkCongNo(key, voucher) {
+    if (!voucher || !voucher.linkId || !modules.congno) return null;
+    var cn = data(key, modules.congno);
+    var found = null;
+    (cn.records || []).forEach(function (r) { if (r.id === voucher.linkId) found = r; });
+    if (!found) return null;
+    found.voucherIds = (found.voucherIds || []).filter(function (id) { return id !== voucher.id; });
+    var match = (voucher.kind === 'in' && found.type !== 'phaiTra') ||
+      (voucher.kind === 'out' && found.type === 'phaiTra');
+    if (match) {
+      found.paid = roundMoney(Math.max(0, (Number(found.paid) || 0) - (Number(voucher.amount) || 0)));
+    }
+    return { module: 'congno', value: cn };
+  }
+
+  // Số dư sổ của một tài khoản tiền đến cuối tháng; dùng để đối chiếu sao kê.
+  function bankBalance(entries, account, untilMonth) {
+    var code = String(account || '111');
+    var limit = untilMonth ? String(untilMonth) + '-31' : '';
+    var total = 0;
+    (entries || []).forEach(function (e) {
+      if (String(e.account || '111') !== code) return;
+      if (limit && String(e.date || '') > limit) return;
+      total += (e.type === 'out' ? -1 : 1) * (Number(e.amount) || 0);
+    });
+    return roundMoney(total);
+  }
+
   // ---------- Nghiệp vụ mở rộng ----------
   // Các hàm này không thay cách lưu cũ: định khoản mới là nguồn bút toán bổ sung,
   // chứng từ/bán hàng/mua hàng cũ vẫn được suy ra như trước để dữ liệu cũ không mất.
@@ -268,7 +304,7 @@
     var ct = src.ct || {}, bh = src.bh || {}, mh = src.mh || {}, ts = src.ts || {};
     var dk = src.dk || {}, cb = src.cb || {}, cn = src.cn || {}, kk = src.kk || {};
     var hd = src.hd || {};
-    (ct.vouchers || []).forEach(function (v) {
+    activeVouchers(ct.vouchers).forEach(function (v) {
       var amount = Number(v.amount) || 0;
       if (!(amount > 0)) return;
       var acc = v.account || '';
@@ -497,6 +533,9 @@
       nextCode: nextCode,
       commit: commit,
       linkCongNo: linkCongNo,
+      unlinkCongNo: unlinkCongNo,
+      activeVouchers: activeVouchers,
+      bankBalance: bankBalance,
       monthOf: monthOf,
       lockUntil: lockUntil,
       isLocked: isLocked,

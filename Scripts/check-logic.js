@@ -732,5 +732,68 @@ Promise.resolve().then(() => {
 }).then(() => {
   assert(branchOf('danhmuc').items.filter(i => i.id === 'csv-item').length === 1,
     'nhập CSV -> mã trùng không ghi đè bản ghi cũ');
+  db.signIn('admin', 'admin');
+  assert(!db.changePassword('admin', 'sai', 'matkhaumoi').ok,
+    'đổi mật khẩu -> mật khẩu hiện tại sai bị từ chối');
+  assert(db.changePassword('admin', 'admin', 'matkhaumoi').ok &&
+    !db.signIn('admin', 'admin').ok && db.signIn('admin', 'matkhaumoi').ok,
+    'đổi mật khẩu -> đăng nhập được bằng mật khẩu mới');
+  assert(db.changePassword('admin', 'matkhaumoi', 'admin').ok,
+    'đổi mật khẩu -> đổi lại để tiếp tục kiểm');
+
+  const snapNoUsers = db.snapshot();
+  delete snapNoUsers.users;
+  assert(db.replaceAll(snapNoUsers) && db.users().length >= 3 && db.signIn('admin', 'admin').ok,
+    'khôi phục bản sao -> không làm mất tài khoản đăng nhập');
+
+  tabOf(paneA, 'caidat').fire('click');
+  const selfForm = sectionOf(paneA, 'caidat').querySelector('.self-pass-form');
+  assert(!!selfForm, 'đổi mật khẩu -> mọi người đều có chỗ tự đổi');
+  fill(selfForm, { old: 'admin', next: 'admin3' });
+  selfForm.fire('submit');
+  assert(!db.signIn('admin', 'admin').ok && db.signIn('admin', 'admin3').ok,
+    'đổi mật khẩu -> dùng được ngay trên giao diện');
+  db.changePassword('admin', 'admin3', 'admin');
+
+  tabOf(paneA, 'chungtu').fire('click');
+  const ctSec3 = sectionOf(paneA, 'chungtu');
+  const ctBody = ctSec3.querySelector('.vtable tbody');
+  const vTarget = branchOf('chungtu').vouchers.filter(v => v.linkId === linked.id)[0];
+  const paidBefore = branchOf('congno').records.filter(r => r.id === linked.id)[0].paid;
+  const statBefore = Number(ctSec3.querySelector('[data-stat="in"]').textContent.replace(/\D/g, ''));
+  let voidBtn = null;
+  ctBody.children.forEach(row => { if (row.dataset.vid === vTarget.id) voidBtn = row.querySelector('[data-void]'); });
+  assert(!!voidBtn, 'hủy chứng từ -> phiếu thêm tay hiện nút hủy');
+  ctBody.fire('click', { target: voidBtn });
+  const cnAfter = branchOf('congno').records.filter(r => r.id === linked.id)[0];
+  const voidedAfter = branchOf('chungtu').vouchers.filter(v => v.id === vTarget.id)[0].voided;
+  assert(voidedAfter && cnAfter.paid === paidBefore - 200000 && cnAfter.voucherIds.length === 0,
+    'hủy chứng từ -> đảo số đã thu và bỏ liên kết công nợ');
+  assert(Number(ctSec3.querySelector('[data-stat="in"]').textContent.replace(/\D/g, '')) === statBefore - 200000 &&
+    H2.activeVouchers(branchOf('chungtu').vouchers).every(v => v.id !== vTarget.id),
+    'hủy chứng từ -> tổng thu và sổ bỏ phiếu đã hủy');
+
+  const cbEntries = [
+    { account: '111', date: '2026-12-01', type: 'in', amount: 100 },
+    { account: '111', date: '2026-12-20', type: 'out', amount: 30 },
+    { account: '111', date: '2027-01-01', type: 'in', amount: 500 },
+    { account: '112', date: '2026-12-15', type: 'in', amount: 900 }
+  ];
+  assert(H2.bankBalance(cbEntries, '111', '2026-12') === 70,
+    'đối chiếu sao kê -> chỉ tính đúng tài khoản và tháng');
+
+  tabOf(paneA, 'cashbank').fire('click');
+  const reconForm = sectionOf(paneA, 'cashbank').querySelector('.cb-recon-form');
+  fill(reconForm, { account: '111', month: '2026-12', statement: '12345000' });
+  reconForm.fire('submit');
+  const rec = (branchOf('cashbank').reconciliations || [])[0];
+  assert(!!rec && rec.month === '2026-12' && rec.account === '111' &&
+    rec.diff === H2.roundMoney(12345000 - rec.book),
+    'đối chiếu sao kê -> lưu số dư sổ, sao kê và chênh lệch');
+  fill(reconForm, { account: '111', month: '2026-12', statement: '12346000' });
+  reconForm.fire('submit');
+  assert((branchOf('cashbank').reconciliations || []).length === 1 &&
+    branchOf('cashbank').reconciliations[0].statement === 12346000,
+    'đối chiếu sao kê -> đối chiếu lại cùng tháng ghi đè kết quả cũ');
   db.signOut();
 });
