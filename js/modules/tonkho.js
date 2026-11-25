@@ -45,30 +45,31 @@
     '</div>';
   }
 
-  function rowHtml(it, qty) {
+  function rowHtml(it, qty, value) {
     return '<tr data-kid="' + H.esc(it.id) + '">' +
       '<td>' + H.esc(it.code || '—') + '</td>' +
       '<td>' + H.esc(it.name) + '</td>' +
       '<td>' + H.esc(it.extra || '—') + '</td>' +
       '<td><b>' + H.money(qty).replace(' đ', '') + '</b></td>' +
-      '<td>' + H.money(qty * (Number(it.price) || 0)) + '</td>' +
+      '<td>' + H.money(value) + '</td>' +
     '</tr>';
   }
 
   function patch(ctx, section, data, initial) {
     var items = H.hangHoa(ctx.key);
     var stock = data.stock || {};
-    var s = H.sig({ items: items, stock: stock, moves: (data.movements || []).length });
+    var s = H.sig({ items: items, stock: stock, moves: (data.movements || []).length,
+      lots: data.lots || {}, avg: data.avg || {}, method: H.valuation(ctx.key) });
     if (ctx.pane.sigs['tonkho.stock'] === s) return;
     ctx.pane.sigs['tonkho.stock'] = s;
 
-    var totalQty = 0, totalValue = 0;
+    var totalQty = 0;
     var rows = items.map(function (it) {
       var qty = Number(stock[it.id]) || 0;
       totalQty += qty;
-      totalValue += qty * (Number(it.price) || 0);
-      return rowHtml(it, qty);
+      return rowHtml(it, qty, H.stockValue(data, [it], ctx.key));
     });
+    var totalValue = H.stockValue(data, items, ctx.key);
     section.querySelector('.kho-table tbody').innerHTML = rows.length ? rows.join('') : '<tr><td colspan="5" class="muted">Chưa có hàng hóa</td></tr>';
     section.querySelector('[data-kho="items"]').textContent = String(items.length);
     section.querySelector('[data-kho="qty"]').textContent = String(totalQty);
@@ -105,6 +106,7 @@
       if (!Array.isArray(current.movements)) current.movements = [];
       var qty = Number(f['qty'].value) || 0;
       current.stock[item.id] = qty;
+      if (qty > 0) H.stockIn(current, item.id, qty, item.price, new Date().toISOString());
       current.movements.push({ id: H.uid('k'), type: 'nhap', itemId: item.id, qty: qty, note: 'Thêm hàng mới', at: new Date().toISOString() });
       current.updatedAt = new Date().toISOString();
       var saved = H.save(ctx.key, mod, current);
@@ -134,10 +136,14 @@
       if (!Array.isArray(current.movements)) current.movements = [];
       var before = Number(current.stock[itemId]) || 0;
       if (type === 'xuat' && qty > before) { ctx.foot('Tồn kho không đủ để xuất ' + qty + '.'); return; }
+      var at = new Date().toISOString();
       current.stock[itemId] = type === 'nhap' ? before + qty : before - qty;
+      var price = (items.filter(function (it) { return it.id === itemId; })[0] || {}).price;
+      if (type === 'nhap') H.stockIn(current, itemId, qty, price, at);
+      else H.stockOut(current, itemId, qty, price, H.valuation(ctx.key), at);
       current.movements.push({
         id: H.uid('k'), type: type, itemId: itemId, qty: qty,
-        note: String(f['note'].value || '').trim(), at: new Date().toISOString()
+        note: String(f['note'].value || '').trim(), at: at
       });
       current.updatedAt = new Date().toISOString();
       var saved = H.save(ctx.key, mod, current);

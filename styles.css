@@ -215,6 +215,40 @@ body {
 .report-table tr.total td { font-weight: 700; background: #f8fafc; }
 .print-area h4 { font-size: 13px; margin: 16px 0 8px; }
 
+/* Đăng nhập, phân quyền và các bảng bổ sung */
+.login-gate {
+  position: fixed; inset: 0; z-index: 999; display: flex; align-items: center;
+  justify-content: center; background: rgba(15, 23, 42, .72); padding: 20px;
+}
+.login-gate[hidden] { display: none; }
+.login-card {
+  width: min(420px, 100%); background: #fff; border-radius: 14px; padding: 26px;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, .3);
+}
+.login-card h2 { margin: 0 0 18px; font-size: 20px; }
+.login-card form { display: flex; flex-direction: column; gap: 12px; }
+.login-card label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); }
+.login-card input, .login-card select {
+  width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 8px;
+  padding: 10px; font: inherit; background: #fff; color: #0f172a;
+}
+.login-card .muted { margin: 12px 0 0; line-height: 1.5; }
+.user-name { color: var(--muted); font-weight: 600; }
+.user-card { margin-top: 18px; }
+.user-form, .cn-aging-form { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.user-form input, .user-form select {
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: inherit; background: #fff;
+}
+.user-table, .cn-aging-table { min-width: 560px; }
+.cn-aging { margin-top: 16px; }
+.cn-aging-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-bottom: 12px; }
+.cn-aging-grid > div { background: #f8fafc; border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+.cn-aging-grid label { display: block; font-size: 11px; color: var(--muted); }
+.cn-aging-grid b { font-size: 14px; }
+.cn-aging-list { display: grid; gap: 6px; }
+.cn-aging-row { display: grid; grid-template-columns: 1.4fr 1fr 1fr 0.8fr; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; font-size: 12px; }
+.cn-aging-row b { text-align: right; }
+
 @media print {
   .sidebar, .topbar, .report-tabs, .report-actions { display: none !important; }
   body, .workspace, .pane, .module-section { overflow: visible !important; }

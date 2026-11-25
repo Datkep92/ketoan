@@ -221,10 +221,12 @@
       if (stock) {
         if (!stock.stock || typeof stock.stock !== 'object' || Array.isArray(stock.stock)) stock.stock = {};
         if (!Array.isArray(stock.movements)) stock.movements = [];
+        var at = new Date().toISOString();
         stock.stock[itemId] = (Number(stock.stock[itemId]) || 0) + qty;
+        H.stockIn(stock, itemId, qty, price, at);
         stock.movements.push({
           id: H.uid('k'), type: 'nhap', itemId: itemId, qty: qty,
-          note: 'Mua hàng ' + purchase.ma + ' từ ' + supplier.name, at: new Date().toISOString()
+          note: 'Mua hàng ' + purchase.ma + ' từ ' + supplier.name, at: at
         });
         stock.updatedAt = new Date().toISOString();
         writes.push({ module: 'tonkho', value: stock });
@@ -336,10 +338,12 @@
       var writes = [{ module: 'muahang', value: current }];
       if (stock) {
         if (!Array.isArray(stock.movements)) stock.movements = [];
+        var at = new Date().toISOString();
         stock.stock[purchase.itemId] = (Number(stock.stock[purchase.itemId]) || 0) - qty;
+        H.stockOut(stock, purchase.itemId, qty, purchase.price, H.valuation(ctx.key), at);
         stock.movements.push({
           id: H.uid('k'), type: 'xuat', itemId: purchase.itemId, qty: qty,
-          note: 'Trả hàng mua phiếu ' + (purchase.ma || purchase.id), at: new Date().toISOString()
+          note: 'Trả hàng mua phiếu ' + (purchase.ma || purchase.id), at: at
         });
         stock.updatedAt = new Date().toISOString();
         writes.push({ module: 'tonkho', value: stock });

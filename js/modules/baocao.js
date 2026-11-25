@@ -62,6 +62,9 @@
       '<div class="report-pane" data-report-pane="socai" hidden>' +
         '<div class="report-scroll"><table class="report-table"><thead><tr><th>Ngày</th><th>Diễn giải</th><th>Đối tài khoản</th><th>Nợ / Có</th><th>Số tiền</th><th>Số dư</th></tr></thead>' +
           '<tbody data-report-body="socai"></tbody></table></div>' +
+        '<h4>Sổ chi tiết công nợ</h4>' +
+        '<div class="report-scroll"><table class="report-table"><thead><tr><th>Đối tác</th><th>Loại</th><th>Phát sinh</th><th>Đã thanh toán</th><th>Còn lại</th><th>Hạn</th></tr></thead>' +
+          '<tbody data-report-body="socn"></tbody></table></div>' +
       '</div>' +
       '<div class="report-pane" data-report-pane="candoi" hidden>' +
         '<div class="report-scroll"><table class="report-table"><thead><tr><th>Tài khoản</th><th>Dư đầu Nợ</th><th>Dư đầu Có</th><th>Phát sinh Nợ</th><th>Phát sinh Có</th><th>Số dư Nợ</th><th>Số dư Có</th></tr></thead>' +
@@ -80,6 +83,12 @@
           '<div class="stat"><label>Vốn chủ sở hữu</label><b data-report="cdktVon">0 đ</b></div>' +
         '</div>' +
         '<p class="muted">Doanh thu lấy từ bán hàng đã trừ trả hàng; chi phí gồm chi phí quản lý, bán hàng và khấu hao. Bảng cân đối gồm tiền, tồn kho, tài sản ròng và các khoản công nợ.</p>' +
+        '<h4>Bảng chấm công, tính lương</h4>' +
+        '<div class="report-scroll"><table class="report-table"><thead><tr><th>Kỳ</th><th>Tổng lương</th><th>Khấu trừ</th><th>Trích theo lương</th><th>Thực lãnh</th><th>Đã chi</th></tr></thead>' +
+          '<tbody data-report-body="luong"></tbody></table></div>' +
+        '<h4>Bảng tính và phân bổ khấu hao</h4>' +
+        '<div class="report-scroll"><table class="report-table"><thead><tr><th>Tài sản</th><th>Nguyên giá</th><th>Đã khấu hao</th><th>Giá trị còn lại</th><th>Số tháng đã tính</th></tr></thead>' +
+          '<tbody data-report-body="khauhao"></tbody></table></div>' +
       '</div>' +
       '<div class="report-pane" data-report-pane="thue" hidden>' +
         '<div class="report-grid">' +
@@ -92,6 +101,9 @@
         '<div class="report-actions"><button type="button" class="btn primary" data-tax-pay>Lập phiếu nộp thuế</button>' +
           '<span class="muted">Phiếu nộp được ghi vào chứng từ và trừ vào số còn phải nộp của kỳ hiện tại.</span></div>' +
         '<p class="muted">Thuế đầu ra lấy từ hóa đơn bán, thuế đầu vào lấy từ hóa đơn mua hàng. Số âm được hiểu là thuế được khấu trừ chuyển kỳ sau.</p>' +
+        '<h4>Tờ khai thuế GTGT (rút gọn)</h4>' +
+        '<div class="report-scroll"><table class="report-table"><thead><tr><th>Chỉ tiêu</th><th>Số liệu kỳ này</th></tr></thead>' +
+          '<tbody data-report-body="tokhai"></tbody></table></div>' +
       '</div>' +
       '<div class="report-pane" data-report-pane="bctc" hidden>' +
         '<div class="report-actions"><button type="button" class="btn primary" data-report-print>In / xuất PDF</button>' +
@@ -106,6 +118,9 @@
           '<table class="report-table"><thead><tr><th>Chỉ tiêu</th><th>Số tiền</th></tr></thead>' +
           '<tbody data-report-body="b03"></tbody></table></div>' +
         '<p class="muted">Bản rút gọn dùng cho doanh nghiệp nhỏ và vừa theo Thông tư 133/2016/TT-BTC. Số liệu cập nhật theo từng mã số thuế; in ra để đính kèm hồ sơ.</p>' +
+        '<h4>Bản thuyết minh và chia tách số liệu (B09 — rút gọn)</h4>' +
+        '<div class="report-scroll print-area"><table class="report-table"><thead><tr><th>Chỉ tiêu</th><th>Số tiền</th></tr></thead>' +
+          '<tbody data-report-body="thuyetminh"></tbody></table></div>' +
       '</div>' +
     '</div>';
   }
@@ -219,9 +234,11 @@
     return '<td class="num">' + H.money(value) + '</td>';
   }
 
-  function renderBooks(section, src) {
+  function renderBooks(section, src, ctx) {
     var entries = journal(src);
     var names = nameMap(src);
+    var depreciation = 0;
+    entries.forEach(function (e) { if (e.debit === '214') depreciation += Number(e.amount) || 0; });
     var nhatKy = section.querySelector('[data-report-body="nhatky"]');
     if (nhatKy) {
       nhatKy.innerHTML = entries.length ? entries.map(function (e) {
@@ -272,6 +289,18 @@
       SoCai.innerHTML = sc.length ? sc.join('') : emptyRow(6, 'Chưa có nghiệp vụ');
     }
 
+    var SoCn = section.querySelector('[data-report-body="socn"]');
+    if (SoCn) {
+      var cnRows = (src.cn.records || []).map(function (r) {
+        var remain = H.roundMoney((Number(r.amount) || 0) - (Number(r.paid) || 0));
+        return '<tr><td>' + H.esc(r.partner || '—') + '</td><td>' +
+          H.esc(r.type === 'phaiTra' ? 'Phải trả' : 'Phải thu') + '</td>' +
+          moneyCell(r.amount) + moneyCell(r.paid) + moneyCell(remain) +
+          '<td>' + H.esc(r.due || '—') + '</td></tr>';
+      });
+      SoCn.innerHTML = cnRows.length ? cnRows.join('') : emptyRow(6, 'Chưa có công nợ');
+    }
+
     var canDoi = section.querySelector('[data-report-body="candoi"]');
     var balanceDebit = 0, balanceCredit = 0;
     if (canDoi) {
@@ -320,10 +349,7 @@
     var tien = H.roundMoney((byAccount['111'] ? byAccount['111'].debit - byAccount['111'].credit : 0) +
       (byAccount['112'] ? byAccount['112'].debit - byAccount['112'].credit : 0) +
       openNet('111') + openNet('112'));
-    var tonKho = 0;
-    (src.dm.items || []).forEach(function (it) {
-      tonKho += (Number((src.kho.stock || {})[it.id]) || 0) * (Number(it.price) || 0);
-    });
+    var tonKho = H.stockValue(src.kho, src.dm.items, ctx ? ctx.key : '');
     var taiSanRong = 0;
     (src.ts.assets || []).forEach(function (a) {
       taiSanRong += (Number(a.cost) || 0) - (Number(a.accumulated) || 0);
@@ -359,6 +385,43 @@
       return '<tr' + (bold ? ' class="total"' : '') + '><td>' + H.esc(label) + '</td>' +
         (value === '' ? '<td></td>' : moneyCell(value)) + '</tr>';
     }
+
+    var luongBody = section.querySelector('[data-report-body="luong"]');
+    if (luongBody) {
+      var payrollRows = (src.cb.payrolls || []).map(function (p) {
+        return '<tr><td>' + H.esc(p.ky || p.date || '—') + '</td>' + moneyCell(p.gross) +
+          moneyCell(p.hold) + moneyCell(p.employer) + moneyCell(p.net) +
+          '<td>' + H.esc(p.paid ? 'Đã chi' : 'Chưa chi') + '</td></tr>';
+      });
+      luongBody.innerHTML = payrollRows.length ? payrollRows.join('') : emptyRow(6, 'Chưa có bảng lương');
+    }
+    var khauHaoBody = section.querySelector('[data-report-body="khauhao"]');
+    if (khauHaoBody) {
+      var assetRows = (src.ts.assets || []).map(function (a) {
+        var cost = Number(a.cost) || 0;
+        var dep = Number(a.accumulated) || 0;
+        var months = (a.depreciation || []).length;
+        return '<tr><td>' + H.esc(a.name || '—') + '</td>' + moneyCell(cost) +
+          moneyCell(dep) + moneyCell(cost - dep) + '<td>' + months + '</td></tr>';
+      });
+      khauHaoBody.innerHTML = assetRows.length ? assetRows.join('') : emptyRow(5, 'Chưa có tài sản');
+    }
+    var toKhaiBody = section.querySelector('[data-report-body="tokhai"]');
+    if (toKhaiBody) {
+      var ky = H.today().slice(0, 7);
+      var paidKy = H.roundMoney((src.taxPayments || []).reduce(function (sum, p) {
+        return sum + (String(p.ky || '') === ky ? (Number(p.amount) || 0) : 0);
+      }, 0));
+      toKhaiBody.innerHTML = [
+        '<tr><td>Kỳ tính thuế</td><td>' + H.esc(ky) + '</td></tr>',
+        reportLine('Thuế GTGT đầu ra', dauRa),
+        reportLine('Thuế GTGT đầu vào được khấu trừ', dauVao),
+        reportLine('Thuế GTGT phải nộp', H.roundMoney(Math.max(0, dauRa - dauVao)), true),
+        reportLine('Đã nộp trong kỳ', paidKy),
+        reportLine('Còn phải nộp', H.roundMoney(Math.max(0, dauRa - dauVao - paidKy)), true)
+      ].join('');
+    }
+
     var thuePhaiNop = H.roundMoney(Math.max(0, dauRa - dauVao));
     var b01 = section.querySelector('[data-report-body="b01"]');
     if (b01) {
@@ -423,6 +486,21 @@
         reportLine('Tiền cuối kỳ', H.roundMoney(opCash + netCash), true)
       ].join('');
     }
+    var thuyetMinh = section.querySelector('[data-report-body="thuyetminh"]');
+    if (thuyetMinh) {
+      var duPhong = 0;
+      (src.cn.provisions || []).forEach(function (p) { duPhong += Number(p.amount) || 0; });
+      thuyetMinh.innerHTML = [
+        reportLine('1. Tiền mặt và tiền gửi ngân hàng', tien),
+        reportLine('2. Hàng hóa tồn kho theo phương pháp ' + (H.valuation(ctx.key) === 'binhquan' ? 'bình quân' : 'FIFO'), H.roundMoney(tonKho)),
+        reportLine('3. Phải thu khách hàng', conThu),
+        reportLine('4. Dự phòng công nợ phải thu', H.roundMoney(duPhong)),
+        reportLine('5. Phải trả người bán', conTra),
+        reportLine('6. Thuế GTGT phải nộp', thuePhaiNop),
+        reportLine('7. Nguyên giá tài sản cố định', H.roundMoney(src.ts.assets || [] .reduce(function (s, a) { return s + (Number(a.cost) || 0); }, 0))),
+        reportLine('8. Khấu hao lũy kế', H.roundMoney(depreciation || 0))
+      ].join('');
+    }
   }
 
   function patch(ctx, section, data, initial) {
@@ -430,6 +508,7 @@
     var s = H.sig({
       v: src.ct.vouchers || [], r: src.cn.records || [],
       bh: src.bh.orders || [], stock: src.kho.stock || {},
+      lots: src.kho.lots || {}, avg: src.kho.avg || {}, val: H.valuation(ctx.key),
       items: src.dm.items || [], hd: src.hd.invoices || [],
       mua: src.mh.purchases || [], muaHd: src.mh.bills || [],
       taiSan: src.ts.assets || [], accounts: src.accounts || [],
@@ -456,10 +535,7 @@
     (src.bh.orders || []).forEach(function (o) {
       sales += (Number(o.amount) || 0) - (Number(o.returned) || 0);
     });
-    var stockValue = 0;
-    (src.dm.items || []).forEach(function (it) {
-      stockValue += (Number((src.kho.stock || {})[it.id]) || 0) * (Number(it.price) || 0);
-    });
+    var stockValue = H.stockValue(src.kho, src.dm.items, ctx.key);
     var invoiceTotal = 0;
     (src.hd.invoices || []).forEach(function (inv) { invoiceTotal += Number(inv.total) || 0; });
     var purchaseTotal = 0, inputInvoiceTotal = 0;
@@ -481,7 +557,7 @@
       var el = section.querySelector('[data-report="' + key + '"]');
       if (el) el.textContent = H.money(values[key]);
     });
-    renderBooks(section, src);
+    renderBooks(section, src, ctx);
     if (!initial) ctx.bumpPatch();
   }
 

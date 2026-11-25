@@ -484,9 +484,10 @@ const totalDebit = Number(bcSec2.querySelector('[data-report="cdpsDebit"]').text
 const totalCredit = Number(bcSec2.querySelector('[data-report="cdpsCredit"]').textContent.replace(/\D/g, ''));
 assert(totalDebit > 0 && totalDebit === totalCredit, 'cân đối phát sinh -> tổng Nợ bằng tổng Có');
 bcSec2.querySelector('[data-report-tab="kqkd"]').fire('click');
-const kqDoanhThu = Number(bcSec2.querySelector('[data-report="kqkdDoanhThu"]').textContent.replace(/\D/g, ''));
-const kqChiPhi = Number(bcSec2.querySelector('[data-report="kqkdChiPhi"]').textContent.replace(/\D/g, ''));
-const kqLoiNhuan = Number(bcSec2.querySelector('[data-report="kqkdLoiNhuan"]').textContent.replace(/\D/g, ''));
+const signed = key => Number(bcSec2.querySelector('[data-report="' + key + '"]').textContent.replace(/[^\d-]/g, '') || 0);
+const kqDoanhThu = signed('kqkdDoanhThu');
+const kqChiPhi = signed('kqkdChiPhi');
+const kqLoiNhuan = signed('kqkdLoiNhuan');
 assert(kqDoanhThu === 400000 && kqLoiNhuan === kqDoanhThu - kqChiPhi,
   'kết quả kinh doanh -> doanh thu sau trả hàng và lợi nhuận đúng');
 bcSec2.querySelector('[data-report-tab="thue"]').fire('click');
@@ -664,3 +665,72 @@ assert(branchOf('baocao').taxPayments.length === 1 && branchOf('baocao').taxPaym
 taxPayBtn.fire('click');
 assert(branchOf('baocao').taxPayments.length === 1 && ids['side-foot'].textContent.indexOf('không còn thuế') >= 0,
   'thuế GTGT -> không nộp trùng cùng kỳ');
+
+// ---------- Phần mở rộng: người dùng, định giá tồn kho, tuổi nợ, sổ chi tiết, nhập CSV ----------
+const H2 = box.Ketoan.helpers;
+const db = box.DB;
+const key0 = Object.keys(db.snapshot().nodes)[0];
+assert(db.signIn('ketoan', '123456').ok && db.currentUser().role === 'accountant' &&
+  !db.signIn('ketoan', 'sai').ok, 'đăng nhập -> đúng tài khoản, sai mật khẩu bị từ chối');
+assert(H2.can('write') && !H2.can('import') && !H2.can('settings'),
+  'phân quyền -> kế toán được ghi nhưng không nhập dữ liệu hay đổi thiết lập');
+db.signIn('xem', '123456');
+assert(!H2.can('write') && H2.can('read'), 'phân quyền -> người xem chỉ đọc');
+db.signIn('admin', 'admin');
+assert(H2.can('import'), 'phân quyền -> quản trị được nhập dữ liệu');
+H2.audit(key0, ' Kiểm người dùng', 'kiểm nhật ký có tên người dùng');
+assert(branchOf('quanly').audit[0].user === 'admin', 'nhật ký thay đổi -> ghi tên người dùng');
+
+const stockFifo = { stock: { h: 5 }, lots: {}, avg: {} };
+H2.stockIn(stockFifo, 'h', 2, 100, '2026-01-01');
+H2.stockIn(stockFifo, 'h', 3, 200, '2026-01-02');
+assert(H2.stockOut(stockFifo, 'h', 4, 0, 'fifo') === 600 &&
+  H2.stockValue(stockFifo, [{ id: 'h', price: 0 }], key0) === 200,
+  'định giá FIFO -> xuất lô cũ trước, tồn cuối đúng giá lô mới');
+const cfgVal = db.branch(key0, 'caidat') || {};
+cfgVal.valMethod = 'binhquan';
+db.saveBranch(key0, 'caidat', cfgVal);
+const stockAvg = { stock: { h: 5 }, lots: {}, avg: {} };
+H2.stockIn(stockAvg, 'h', 2, 100, '2026-01-01');
+H2.stockIn(stockAvg, 'h', 3, 200, '2026-01-02');
+assert(H2.valuation(key0) === 'binhquan' && H2.stockValue(stockAvg, [{ id: 'h', price: 0 }], key0) === 800 &&
+  H2.stockOut(stockAvg, 'h', 4, 0, 'binhquan') === 640,
+  'định giá bình quân -> tồn và giá xuất theo giá trung bình');
+cfgVal.valMethod = 'fifo';
+db.saveBranch(key0, 'caidat', cfgVal);
+
+tabOf(paneA, 'congno').fire('click');
+fill(cnForm, { type: 'phaiThu', partner: 'Khách quá hạn', amount: '1000000', paid: '0',
+  date: '2026-12-31', due: '2020-01-01' });
+cnForm.fire('submit');
+const overdueValue = Number(cnSec.querySelector('[data-cn-age="overdue"]').textContent.replace(/\D/g, ''));
+assert(overdueValue >= 1000000 && cnSec.querySelector('[data-cn-body="aging"]')._html.indexOf('Khách quá hạn') >= 0,
+  'tuổi nợ -> khoản quá hạn vào nhóm trên 90 ngày và hiện danh sách');
+
+tabOf(paneA, 'baocao').fire('click');
+bcSec.querySelector('[data-report-tab="socai"]').fire('click');
+assert(bcSec.querySelector('[data-report-body="socn"]').children.length > 0,
+  'sổ chi tiết -> hiện các khoản công nợ của công ty đang mở');
+
+tabOf(paneA, 'quanly').fire('click');
+const qlSec2 = sectionOf(paneA, 'quanly');
+const qlSelect = qlSec2.querySelector('.ql-branch');
+qlSelect.value = 'danhmuc';
+qlSelect.fire('change');
+const itemsBeforeCsv = branchOf('danhmuc').items.length;
+const qlFile = qlSec2.querySelector('.ql-file');
+qlFile.files = [{ text: () => Promise.resolve('id,name,price\ncsv-item,Hàng nhập CSV,12000\n') }];
+qlFile.fire('change');
+Promise.resolve().then(() => {
+  assert(branchOf('danhmuc').items.length === itemsBeforeCsv + 1 &&
+    branchOf('danhmuc').items.some(i => i.name === 'Hàng nhập CSV') &&
+    branchOf('quanly').audit.some(l => l.action.indexOf('Nhập CSV') >= 0),
+    'nhập CSV -> thêm bản ghi mới và ghi nhật ký');
+  qlFile.files = [{ text: () => Promise.resolve('id,name,price\ncsv-item,Hàng trùng,12000\n') }];
+  qlFile.fire('change');
+  return Promise.resolve();
+}).then(() => {
+  assert(branchOf('danhmuc').items.filter(i => i.id === 'csv-item').length === 1,
+    'nhập CSV -> mã trùng không ghi đè bản ghi cũ');
+  db.signOut();
+});

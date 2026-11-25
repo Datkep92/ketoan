@@ -290,6 +290,60 @@
     return true;
   }
 
+  // ---------- Người dùng và phiên đăng nhập ----------
+  // Tài khoản lưu chung trong một kho dữ liệu, phiên chỉ sống trong tab hiện tại.
+  var sessionUser = null;
+  function defaultUsers() {
+    return [
+      { id: 'u-admin', name: 'admin', pass: 'admin', role: 'admin', label: 'Quản trị' },
+      { id: 'u-kt', name: 'ketoan', pass: '123456', role: 'accountant', label: 'Kế toán' },
+      { id: 'u-xem', name: 'xem', pass: '123456', role: 'viewer', label: 'Xem' }
+    ];
+  }
+  function users() {
+    var list = db && Array.isArray(db.users) && db.users.length ? db.users : defaultUsers();
+    return clone(list);
+  }
+  function saveUsers(list) {
+    if (!Array.isArray(list)) return false;
+    return !!setPath(['users'], list);
+  }
+  function signIn(name, pass) {
+    var typed = String(name || '').trim().toLowerCase();
+    var found = users().filter(function (u) {
+      return String(u.name || '').toLowerCase() === typed;
+    })[0];
+    if (!found || String(found.pass || '') !== String(pass || '')) {
+      return { ok: false, error: 'Tài khoản hoặc mật khẩu không đúng.' };
+    }
+    sessionUser = clone(found);
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem(NS + ':user', JSON.stringify(sessionUser));
+      }
+    } catch (e) { /* trình duyệt chặn bộ nhớ phiên */ }
+    return { ok: true, user: clone(sessionUser) };
+  }
+  function currentUser() {
+    if (sessionUser) return clone(sessionUser);
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        var raw = sessionStorage.getItem(NS + ':user');
+        if (raw) {
+          var parsed = JSON.parse(raw);
+          if (parsed && parsed.name) { sessionUser = parsed; return clone(parsed); }
+        }
+      }
+    } catch (e) { /* bỏ qua phiên hỏng */ }
+    return null;
+  }
+  function signOut() {
+    sessionUser = null;
+    try {
+      if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(NS + ':user');
+    } catch (e) { /* bỏ qua */ }
+  }
+
   load();
 
   global.KetoanDB = {
@@ -314,6 +368,11 @@
     setPath: setPath,
     childKeys: childKeys,
     snapshot: function () { return clone(db); },
-    uid: uid
+    uid: uid,
+    users: users,
+    saveUsers: saveUsers,
+    signIn: signIn,
+    signOut: signOut,
+    currentUser: currentUser
   };
 })(typeof window !== 'undefined' ? window : this);

@@ -28,6 +28,17 @@
         '<div><label>Còn trả</label><b data-cn="conTra">0 đ</b></div>' +
         '<div><label>Dự phòng</label><b data-cn="provision">0 đ</b></div>' +
       '</div>' +
+      '<div class="cn-aging">' +
+        '<h4>Tuổi nợ phải thu</h4>' +
+        '<div class="cn-aging-grid">' +
+          '<div><label>Chưa đến hạn</label><b data-cn-age="current">0 đ</b></div>' +
+          '<div><label>1 – 30 ngày</label><b data-cn-age="d30">0 đ</b></div>' +
+          '<div><label>31 – 60 ngày</label><b data-cn-age="d60">0 đ</b></div>' +
+          '<div><label>61 – 90 ngày</label><b data-cn-age="d90">0 đ</b></div>' +
+          '<div><label>Trên 90 ngày</label><b data-cn-age="overdue">0 đ</b></div>' +
+        '</div>' +
+        '<div class="cn-aging-list" data-cn-body="aging"></div>' +
+      '</div>' +
       '<table class="cn-table"><thead><tr><th>Loại</th><th>Đối tượng</th><th>Phát sinh</th><th>Đã trả</th><th>Còn lại</th><th>Hạn</th><th>Chứng từ</th></tr></thead>' +
         '<tbody data-cn-body="records"></tbody></table>' +
       '<p class="muted">Vào phần Chứng từ, chọn khoản công nợ khi thêm phiếu thu/chi để tự cập nhật số đã thu/trả. Các khoản đã nối hiện ở cột cuối.</p>' +
@@ -93,6 +104,30 @@
     section.querySelector('[data-cn-body="provisions"]').innerHTML = provisions.length
       ? provisions.map(provisionRow).join('')
       : '<tr><td colspan="3" class="muted">Chưa có dự phòng</td></tr>';
+
+    // Tuổi nợ tính theo ngày đến hạn (nếu không có hạn thì theo ngày phát sinh).
+    var todayMs = Date.parse(H.today()) || 0;
+    var buckets = { current: 0, d30: 0, d60: 0, d90: 0, overdue: 0 };
+    var agingRows = [];
+    records.forEach(function (r) {
+      if (r.type === 'phaiTra') return;
+      var remain = (Number(r.amount) || 0) - (Number(r.paid) || 0);
+      if (!(remain > 0)) return;
+      var due = r.due || r.date || H.today();
+      var days = Math.floor((todayMs - (Date.parse(due) || todayMs)) / 86400000);
+      var key = days <= 0 ? 'current' : (days <= 30 ? 'd30' : (days <= 60 ? 'd60' : (days <= 90 ? 'd90' : 'overdue')));
+      buckets[key] = H.roundMoney(buckets[key] + remain);
+      agingRows.push('<div class="cn-aging-row"><span>' + H.esc(r.partner) + '</span><span>' + H.esc(due) + '</span><b>' +
+        H.money(remain) + '</b><span>' + (days <= 0 ? 'Chưa đến hạn' : days + ' ngày') + '</span></div>');
+    });
+    Object.keys(buckets).forEach(function (key) {
+      var el = section.querySelector('[data-cn-age="' + key + '"]');
+      if (el) el.textContent = H.money(buckets[key]);
+    });
+    var agingBody = section.querySelector('[data-cn-body="aging"]');
+    if (agingBody) agingBody.innerHTML = agingRows.length
+      ? agingRows.slice(0, 12).join('')
+      : '<p class="muted">Không có khoản phải thu quá hạn</p>';
     if (!initial) ctx.bumpPatch();
   }
 

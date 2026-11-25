@@ -172,6 +172,7 @@
       var discountAmount = H.roundMoney(gross * discount / 100);
       var amount = H.roundMoney(gross - discountAmount);
       var cogs = H.roundMoney(qty * (Number(f['cost'].value) || 0));
+      var manualCost = Number(f['cost'].value) || 0;
       var paid = Math.min(H.roundMoney(Number(f['paid'].value) || 0), amount);
       var remain = H.roundMoney(amount - paid);
       if (!(amount > 0)) return;
@@ -183,10 +184,13 @@
       if (!Array.isArray(stock.movements)) stock.movements = [];
       var before = Number(stock.stock[itemId]) || 0;
       if (qty > before) { ctx.foot('Tồn kho không đủ để bán ' + qty + ' ' + (item.extra || '') + '.'); return; }
+      var at = new Date().toISOString();
+      var lotCost = H.stockOut(stock, itemId, qty, item.price || price, H.valuation(ctx.key), at);
+      if (!manualCost) cogs = lotCost;
       stock.stock[itemId] = before - qty;
       stock.movements.push({
         id: H.uid('k'), type: 'xuat', itemId: itemId, qty: qty,
-        note: 'Bán hàng cho ' + customerName, at: new Date().toISOString()
+        note: 'Bán hàng cho ' + customerName, at: at
       });
       stock.updatedAt = new Date().toISOString();
 
@@ -285,10 +289,12 @@
       if (stock) {
         if (!stock.stock || typeof stock.stock !== 'object' || Array.isArray(stock.stock)) stock.stock = {};
         if (!Array.isArray(stock.movements)) stock.movements = [];
+        var at = new Date().toISOString();
         stock.stock[order.itemId] = (Number(stock.stock[order.itemId]) || 0) + qty;
+        H.stockIn(stock, order.itemId, qty, qty > 0 ? backCogs / qty : 0, at);
         stock.movements.push({
           id: H.uid('k'), type: 'nhap', itemId: order.itemId, qty: qty,
-          note: 'Trả hàng phiếu ' + (order.ma || order.id), at: new Date().toISOString()
+          note: 'Trả hàng phiếu ' + (order.ma || order.id), at: at
         });
         stock.updatedAt = new Date().toISOString();
         writes.push({ module: 'tonkho', value: stock });

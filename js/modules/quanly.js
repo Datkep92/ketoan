@@ -8,6 +8,9 @@
 
   var SKIP = { id: 1, at: 1, updatedAt: 1, source: 1, voucherIds: 1, lines: 1,
     returns: 1, depreciation: 1, stock: 1, audit: 1, _html: 1 };
+  // CSV mang theo mã bản ghi để nhập lại không tạo trùng; trình sửa vẫn ẩn mã này.
+  var CSV_SKIP = Object.assign({}, SKIP);
+  delete CSV_SKIP.id;
 
   var SOURCES = [
     { name: 'chungtu', label: 'Chứng từ', field: 'vouchers' },
@@ -77,6 +80,8 @@
         '<select class="ql-branch">' + opts + '</select>' +
         '<input class="ql-search" placeholder="Tìm mã, tên, diễn giải">' +
         '<button class="btn" type="button" data-ql-export>Xuất CSV</button>' +
+        '<button class="btn" type="button" data-ql-import>Nhập CSV</button>' +
+        '<input class="ql-file" type="file" accept=".csv,text/csv" hidden>' +
       '</div>' +
       '<div class="report-scroll"><table class="report-table ql-table"><thead><tr>' +
         '<th>Mã / tên</th><th>Ngày</th><th>Giá trị</th><th>Diễn giải</th><th></th>' +
@@ -211,7 +216,7 @@
     var keys = [];
     rows.forEach(function (r) {
       Object.keys(r).forEach(function (k) {
-        if (!SKIP[k] && typeof r[k] !== 'object' && keys.indexOf(k) < 0) keys.push(k);
+        if (!CSV_SKIP[k] && typeof r[k] !== 'object' && keys.indexOf(k) < 0) keys.push(k);
       });
     });
     if (!keys.length) keys = ['id'];
@@ -231,6 +236,69 @@
     }
   }
 
+  function parseCsv(text) {
+    var table = [], row = [], cell = '', quoted = false;
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i];
+      if (quoted) {
+        if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+        else if (ch === '"') quoted = false;
+        else cell += ch;
+      } else if (ch === '"') quoted = true;
+      else if (ch === ',') { row.push(cell); cell = ''; }
+      else if (ch === '\n') { row.push(cell); table.push(row); row = []; cell = ''; }
+      else if (ch !== '\r') cell += ch;
+    }
+    if (cell || row.length) { row.push(cell); table.push(row); }
+    return table;
+  }
+
+  function importCsv(ctx, section, source, file) {
+    if (!file || !H.can('import')) {
+      ctx.foot('Người dùng này không có quyền nhập dữ liệu.'); return;
+    }
+    function read(done) {
+      if (file.text && typeof file.text === 'function') {
+        file.text().then(done).catch(function () { ctx.foot('Không đọc được tệp CSV.'); });
+        return;
+      }
+      var reader = new global.FileReader();
+      reader.onload = function () { done(String(reader.result || '')); };
+      reader.onerror = function () { ctx.foot('Không đọc được tệp CSV.'); };
+      reader.readAsText(file, 'UTF-8');
+    }
+    read(function (text) {
+      var table = parseCsv(String(text || '').replace(/^\ufeff/, ''));
+      if (table.length < 2) { ctx.foot('Tệp CSV không có dữ liệu để nhập.'); return; }
+      var header = table.shift();
+      var store = storeOf(ctx, source.name);
+      var rows = Array.isArray(store[source.field]) ? store[source.field].slice() : [];
+      var seen = {};
+      rows.forEach(function (r) { seen[String(r && r.id)] = true; });
+      var added = 0;
+      table.forEach(function (cols) {
+        if (!cols.some(function (v) { return String(v || '').trim(); })) return;
+        var row = {};
+        cols.forEach(function (value, i) {
+          var key = String(header[i] || '').trim();
+          if (!key || CSV_SKIP[key]) return;
+          row[key] = /^(qty|price|amount|total|cost|gross|paid|tax|taxAmount|discount|rate|employer|net|hold|accumulated)$/.test(key)
+            ? Number(value) || 0 : String(value);
+        });
+        if (!row.id) row.id = H.uid(source.name);
+        if (!seen[String(row.id)]) { rows.push(row); seen[String(row.id)] = true; added++; }
+      });
+      if (!added) { ctx.foot('Không có bản ghi mới trong tệp CSV.'); return; }
+      store[source.field] = rows;
+      store.updatedAt = new Date().toISOString();
+      if (!H.commit(ctx.key, [{ module: source.name, value: store }], ctx, 'Đã nhập ' + added + ' bản ghi.')) return;
+      H.audit(ctx.key, 'Nhập CSV ' + source.label, added + ' bản ghi');
+      renderAll(ctx, section);
+      ctx.sync(source.name);
+      ctx.sync('baocao');
+    });
+  }
+
   function bind(ctx, section) {
     var select = section.querySelector('.ql-branch');
     var search = section.querySelector('.ql-search');
@@ -243,6 +311,12 @@
     });
     section.querySelector('[data-ql-export]').addEventListener('click', function () {
       exportCsv(ctx, section, sourceOf(select.value || 'chungtu'));
+    });
+    var file = section.querySelector('.ql-file');
+    section.querySelector('[data-ql-import]').addEventListener('click', function () { file.click(); });
+    file.addEventListener('change', function () {
+      if (file.files && file.files[0]) importCsv(ctx, section, sourceOf(select.value || 'chungtu'), file.files[0]);
+      file.value = '';
     });
   }
 

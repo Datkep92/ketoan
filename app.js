@@ -275,9 +275,70 @@
     openTenant(result.key);
   });
 
-  // ---------- Khởi động ----------
-  state.tenants = DB.list();
-  renderSidebar();
-  updateCounters();
-  if (state.tenants.length) openTenant(nodeKey(state.tenants[0]));
+  // ---------- Đăng nhập / phân quyền ----------
+  var gate = document.getElementById('login-gate');
+  var loginForm = document.getElementById('login-form');
+  var loginUser = document.getElementById('login-user');
+  var loginPass = document.getElementById('login-pass');
+  var loginError = document.getElementById('login-error');
+  var userNameEl = document.getElementById('user-name');
+  var started = false;
+
+  function showUser() {
+    if (!userNameEl) return;
+    var u = DB.currentUser();
+    userNameEl.textContent = u ? ((u.label || u.role || '') + ' · ' + u.name) : '';
+    var readonly = u && u.role === 'viewer';
+    var addBtn = document.getElementById('btn-add-tenant');
+    var demoBtn2 = document.getElementById('btn-demo');
+    if (addBtn) addBtn.hidden = !!readonly;
+    if (demoBtn2) demoBtn2.hidden = !!readonly;
+  }
+
+  function start() {
+    if (started) return;
+    started = true;
+    state.tenants = DB.list();
+    renderSidebar();
+    updateCounters();
+    if (state.tenants.length) openTenant(nodeKey(state.tenants[0]));
+  }
+
+  function unlock() {
+    if (gate) gate.hidden = true;
+    showUser();
+    start();
+  }
+
+  if (gate && loginForm && loginUser) {
+    DB.users().forEach(function (u) {
+      var opt = document.createElement('option');
+      opt.value = u.name;
+      opt.textContent = (u.label || u.role || u.name) + ' — ' + u.name;
+      loginUser.appendChild(opt);
+    });
+    loginForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var result = DB.signIn(loginUser.value, loginPass ? loginPass.value : '');
+      if (!result || !result.ok) {
+        if (loginError) loginError.textContent = result && result.error ? result.error : 'Đăng nhập không thành công.';
+        return;
+      }
+      if (loginError) loginError.textContent = '';
+      if (loginPass) loginPass.value = '';
+      foot('Chào ' + (result.user.label || result.user.name) + '. Dữ liệu lưu trên thiết bị.');
+      unlock();
+    });
+    var signOutBtn = document.getElementById('btn-signout');
+    if (signOutBtn) signOutBtn.addEventListener('click', function () {
+      DB.signOut();
+      gate.hidden = false;
+      if (loginError) loginError.textContent = '';
+      if (loginPass) { loginPass.value = ''; loginPass.focus(); }
+    });
+    if (DB.currentUser()) unlock();
+    else gate.hidden = false;
+  } else {
+    start();
+  }
 })();

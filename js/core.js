@@ -42,6 +42,22 @@
     return DB && DB.uid ? DB.uid(prefix) : prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   }
 
+  function currentUser() {
+    return DB && DB.currentUser ? DB.currentUser() : null;
+  }
+
+  // Chưa đăng nhập (môi trường kiểm thử) thì vẫn cho thao tác như trước.
+  function can(action) {
+    var user = currentUser();
+    if (!user) return true;
+    if (user.role === 'admin') return true;
+    if (user.role === 'viewer') return action === 'read';
+    if (user.role === 'accountant') {
+      return ['settings', 'users', 'import', 'export', 'lock'].indexOf(action) < 0;
+    }
+    return false;
+  }
+
   function esc(value) {
     return String(value === undefined || value === null ? '' : value)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -57,7 +73,7 @@
   }
 
   function save(key, mod, value) {
-    if (!DB || !mod || !mod.branch) return null;
+    if (!DB || !mod || !mod.branch || !can('write')) return null;
     return DB.saveBranch(key, mod.branch, value);
   }
 
@@ -163,7 +179,8 @@
     if (!Array.isArray(store.audit)) store.audit = [];
     store.audit.unshift({
       id: uid('log'), at: new Date().toISOString(),
-      action: String(action || ''), detail: String(detail || '')
+      action: String(action || ''), detail: String(detail || ''),
+      user: (currentUser() || {}).name || ''
     });
     if (store.audit.length > 200) store.audit.length = 200;
     save(key, mod, store);
@@ -171,6 +188,10 @@
 
   // Chặn ghi vào kỳ đã khóa trước khi module thay đổi dữ liệu.
   function guard(ctx, date, action) {
+    if (!can('write')) {
+      if (ctx && ctx.foot) ctx.foot('Người dùng này chỉ được xem, không thể thay đổi dữ liệu.');
+      return false;
+    }
     if (isReadOnly()) {
       if (ctx && ctx.foot) ctx.foot('Dữ liệu đang ở chế độ chỉ đọc, thay đổi chưa được lưu.');
       return false;
@@ -349,6 +370,101 @@
     return kk && Array.isArray(kk.openings) ? kk.openings : [];
   }
 
+  // ---------- Định giá tồn kho ----------
+  // Mỗi lần nhập tạo một lô; xuất theo FIFO hoặc bình quân tùy thiết lập của công ty.
+  function valuation(key) {
+    var mod = modules.caidat;
+    var cfg = mod ? data(key, mod) : {};
+    return cfg && cfg.valMethod === 'binhquan' ? 'binhquan' : 'fifo';
+  }
+
+  function ensureLots(store) {
+    if (!store || typeof store !== 'object') return null;
+    if (!store.lots || typeof store.lots !== 'object' || Array.isArray(store.lots)) store.lots = {};
+    if (!store.avg || typeof store.avg !== 'object' || Array.isArray(store.avg)) store.avg = {};
+    return store;
+  }
+
+  function recomputeAvg(store, id) {
+    var arr = (store.lots || {})[id] || [];
+    var qty = 0, value = 0;
+    arr.forEach(function (lot) {
+      var n = Number(lot.qty) || 0;
+      qty += n;
+      value += n * (Number(lot.price) || 0);
+    });
+    store.avg[id] = qty > 0 ? roundMoney(value / qty) : 0;
+  }
+
+  function stockIn(store, id, qty, price, at) {
+    if (!ensureLots(store)) return;
+    id = String(id || '');
+    qty = roundMoney(qty);
+    if (!(qty > 0)) return;
+    var arr = Array.isArray(store.lots[id]) ? store.lots[id] : [];
+    arr.push({ id: uid('lot'), qty: qty, price: roundMoney(price), at: at || new Date().toISOString() });
+    store.lots[id] = arr;
+    recomputeAvg(store, id);
+  }
+
+  function stockOut(store, id, qty, fallbackPrice, method, at) {
+    if (!ensureLots(store)) return 0;
+    id = String(id || '');
+    qty = roundMoney(qty);
+    if (!(qty > 0)) return 0;
+    var arr = Array.isArray(store.lots[id]) ? store.lots[id] : [];
+    var fallback = roundMoney(fallbackPrice);
+    var cost = 0, remain = qty;
+    if (method === 'binhquan') {
+      var avg = Number(store.avg[id]) || fallback;
+      cost = roundMoney(avg * qty);
+      var total = arr.reduce(function (sum, lot) { return sum + (Number(lot.qty) || 0); }, 0);
+      if (total > 0) {
+        var used = Math.min(1, qty / total);
+        arr.forEach(function (lot) { lot.qty = roundMoney((Number(lot.qty) || 0) * (1 - used)); });
+      }
+    } else {
+      for (var i = 0; i < arr.length && remain > 0; i++) {
+        var lot = arr[i];
+        var take = Math.min(remain, Number(lot.qty) || 0);
+        if (take > 0) {
+          lot.qty = roundMoney((Number(lot.qty) || 0) - take);
+          cost += take * (Number(lot.price) || 0);
+          remain -= take;
+        }
+      }
+      cost += remain * fallback;
+    }
+    store.lots[id] = arr.filter(function (lot) { return (Number(lot.qty) || 0) > 0; });
+    recomputeAvg(store, id);
+    return roundMoney(cost);
+  }
+
+  function stockValue(store, items, key) {
+    var method = valuation(key);
+    var stock = store && store.stock && typeof store.stock === 'object' ? store.stock : {};
+    var total = 0;
+    (items || []).forEach(function (it) {
+      var qty = Number(stock[it.id]) || 0;
+      if (!(qty > 0)) return;
+      var fallback = Number(it.price) || 0;
+      if (method === 'binhquan') {
+        var avg = store && store.avg ? Number(store.avg[it.id]) || 0 : 0;
+        total += qty * (avg || fallback);
+      } else {
+        var arr = store && store.lots && Array.isArray(store.lots[it.id]) ? store.lots[it.id] : [];
+        var left = qty;
+        arr.forEach(function (lot) {
+          var take = Math.min(left, Number(lot.qty) || 0);
+          total += take * (Number(lot.price) || 0);
+          left -= take;
+        });
+        total += left * fallback;
+      }
+    });
+    return roundMoney(total);
+  }
+
   global.Ketoan = {
     register: register,
     modules: modules,
@@ -390,7 +506,13 @@
       removeFrom: removeFrom,
       journalFrom: journalFrom,
       openingsOf: openingsOf,
-      addEntry: addEntry
+      addEntry: addEntry,
+      can: can,
+      currentUser: currentUser,
+      valuation: valuation,
+      stockIn: stockIn,
+      stockOut: stockOut,
+      stockValue: stockValue
     }
   };
 })(typeof window !== 'undefined' ? window : this);

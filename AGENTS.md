@@ -46,6 +46,11 @@
 - Trả hàng mua: hoàn tồn kho và giảm đúng khoản phải trả; thanh lý/nhượng bán tài sản ghi tiền thu, hao mòn và lãi/lỗ, đánh dấu tài sản đã thanh lý.
 - Kết chuyển cuối kỳ: phiếu Nợ/Có luôn cân bằng, hiện trong bảng và nhật ký chung.
 - Báo cáo: thêm B03 lưu chuyển tiền tệ trong bảy tab hiện có (không thêm tab mới).
+- Đăng nhập & phân quyền: mở trang hiện màn hình đăng nhập; ba tài khoản mặc định là `admin/admin` (quản trị), `ketoan/123456` (kế toán), `xem/123456` (chỉ xem). Kế toán được ghi nghiệp vụ nhưng không nhập/xuất cả bộ dữ liệu hay đổi thiết lập và tài khoản; người xem chỉ đọc. Đổi mật khẩu mặc định trước khi dùng thật.
+- Định giá tồn kho: thiết lập chọn FIFO hoặc bình quân; nhập có lô, xuất tính đúng giá theo phương pháp đã chọn; thuyết minh B02 nêu rõ phương pháp đang dùng.
+- Công nợ: bảng tuổi nợ theo nhóm quá hạn; sổ chi tiết công nợ nằm trong tab tổng hợp báo cáo.
+- Báo cáo bổ sung trong bảy tab hiện có: bảng lương, bảng khấu hao, tờ khai thuế GTGT rút gọn và thuyết minh B02/B03.
+- Quản lý dữ liệu: xuất/nhập CSV có kèm mã bản ghi; nhập lại cùng tệp không tạo bản ghi trùng và không ghi đè bản ghi cũ. Nhật ký thay đổi ghi tên người dùng đang đăng nhập.
 
 ## Nguyên tắc render
 - Mỗi công ty có một vùng `.tenant-pane` riêng, cache trong `state.panes` theo khóa MST.
@@ -60,5 +65,5 @@
 - Kiểm cú pháp 20 tệp (lõi, mười bốn phần, dữ liệu mẫu và hai tập lệnh kiểm): biên dịch từng tệp bằng `new vm.Script(...)` trong một lệnh `node.real --jitless -e`.
 - Kiểm dữ liệu mẫu: `node Scripts/check-demo.js` — 27 dòng PASS (20 ca cũ giữ nguyên, thêm 7 ca cho nghiệp vụ mới).
 - Kiểm logic không cần trình duyệt: `node Scripts/check-logic.js`.
-  Kỳ vọng 149 dòng PASS: giữ nguyên 125 ca cũ, thêm 17 ca nghiệp vụ TT133 và 7 ca mới cho hóa đơn thu tiền, khóa kỳ với chứng từ, bút toán thuế/phải thu/tài sản, nộp thuế GTGT.
+  Kỳ vọng 160 dòng PASS: giữ nguyên 149 ca cũ, thêm 11 ca cho đăng nhập/phân quyền, nhật ký người dùng, định giá FIFO/bình quân, tuổi nợ, sổ chi tiết và nhập CSV chống trùng.
 - Trên thiết bị này `node --check` bị Bus error; dùng `node.real --jitless` như trên.
