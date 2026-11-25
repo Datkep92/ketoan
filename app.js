@@ -81,6 +81,39 @@
     empty.hidden = state.tenants.length > 0;
   }
 
+  function buildShortcuts() {
+    var nav = document.getElementById('side-shortcuts');
+    if (!nav || nav.children.length) return;
+    var picks = [
+      ['chungtu', '◈', 'Chứng từ'],
+      ['baocao', '▤', 'Báo cáo'],
+      ['danhmuc', '▦', 'Danh mục'],
+      ['banhang', '▥', 'Bán hàng'],
+      ['congno', '◫', 'Công nợ'],
+      ['caidat', '⚙', 'Thiết lập']
+    ];
+    picks.forEach(function (p) {
+      if (!K.modules[p[0]]) return;
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'shortcut';
+      btn.dataset.goto = p[0];
+      var icon = document.createElement('span');
+      icon.className = 'ico';
+      icon.textContent = p[1];
+      var label = document.createElement('span');
+      label.textContent = p[2];
+      btn.appendChild(icon);
+      btn.appendChild(label);
+      btn.addEventListener('click', function () {
+        var pane = state.activeId && state.panes[state.activeId];
+        if (!pane) { foot('Chọn một công ty trước khi vào phân hệ.'); return; }
+        activateModule(pane, p[0]);
+      });
+      nav.appendChild(btn);
+    });
+  }
+
   // ---------- Tạo công ty: mỗi MST là một nhánh trong kho chung ----------
   function createTenant(name, type, mst) {
     var result = DB.create(mst, name, type);
@@ -113,7 +146,27 @@
     };
   }
 
+  function patchAside(pane) {
+    var root = pane && pane.root;
+    if (!root) return;
+    function setText(name, value) {
+      var el = root.querySelector('[data-aside="' + name + '"]');
+      if (el) el.textContent = value;
+    }
+    try {
+      setText('vouchers', H.chungTu(pane.key).length);
+      setText('orders', H.donBan(pane.key).length);
+      setText('invoices', H.hoaDon(pane.key).length);
+      setText('items', H.hangHoa(pane.key).length);
+    } catch (e) {}
+    root.querySelectorAll('.aside-link').forEach(function (btn) {
+      if (btn.dataset.goto === pane.activeModule) btn.classList.add('active');
+      else btn.classList.remove('active');
+    });
+  }
+
   function syncModule(pane, name, initial) {
+    patchAside(pane);
     var mod = K.modules[name];
     var section = pane.modules[name];
     if (!mod || !section || !mod.patch) return;
@@ -128,6 +181,11 @@
       if (tab.dataset.tab === name) tab.classList.add('active');
       else tab.classList.remove('active');
     });
+    var sideNav = document.getElementById('side-shortcuts');
+    if (sideNav) sideNav.querySelectorAll('.shortcut').forEach(function (btn) {
+      if (btn.dataset.goto === name) btn.classList.add('active');
+      else btn.classList.remove('active');
+    });
     // Đồng bộ lại phần vừa mở, nhưng không tăng bộ đếm khi chỉ chuyển tab.
     syncModule(pane, name, true);
   }
@@ -138,7 +196,28 @@
         '<button class="btn ghost btn-rename" type="button">Đổi tên</button>' +
       '</div>' +
       '<nav class="module-tabs" aria-label="Các phần của công ty"></nav>' +
-      '<div class="module-body"></div>';
+      '<div class="pane-layout">' +
+        '<div class="module-main module-body"></div>' +
+        '<aside class="module-aside" aria-label="Tóm tắt nhanh">' +
+          '<div class="aside-card">' +
+            '<h4>Tóm tắt nhanh</h4>' +
+            '<div class="aside-row"><span>Chứng từ</span><b data-aside="vouchers">0</b></div>' +
+            '<div class="aside-row"><span>Đơn bán</span><b data-aside="orders">0</b></div>' +
+            '<div class="aside-row"><span>Hóa đơn</span><b data-aside="invoices">0</b></div>' +
+            '<div class="aside-row"><span>Mặt hàng</span><b data-aside="items">0</b></div>' +
+          '</div>' +
+          '<div class="aside-card">' +
+            '<h4>Truy cập nhanh</h4>' +
+            '<div class="aside-links">' +
+              '<button type="button" class="aside-link" data-goto="chungtu">Chứng từ</button>' +
+              '<button type="button" class="aside-link" data-goto="baocao">Báo cáo</button>' +
+              '<button type="button" class="aside-link" data-goto="danhmuc">Danh mục</button>' +
+              '<button type="button" class="aside-link" data-goto="banhang">Bán hàng</button>' +
+              '<button type="button" class="aside-link" data-goto="congno">Công nợ</button>' +
+            '</div>' +
+          '</div>' +
+        '</aside>' +
+      '</div>';
   }
 
   function createPane(meta) {
@@ -153,7 +232,7 @@
     var pane = { key: key, root: root, sigs: {}, modules: {}, activeModule: 'chungtu' };
     patchMeta(pane, meta, true);
     var tabBar = root.querySelector('.module-tabs');
-    var body = root.querySelector('.module-body');
+    var body = root.querySelector('.module-main');
 
     K.list().forEach(function (mod) {
       var ctx = moduleContext(pane, mod);
@@ -173,6 +252,10 @@
       tab.textContent = mod.label || mod.name;
       tab.addEventListener('click', function () { activateModule(pane, mod.name); });
       tabBar.appendChild(tab);
+    });
+
+    root.querySelectorAll('.aside-link').forEach(function (btn) {
+      btn.addEventListener('click', function () { activateModule(pane, btn.dataset.goto); });
     });
 
     root.querySelector('.btn-rename').addEventListener('click', function () {
@@ -299,6 +382,7 @@
     if (started) return;
     started = true;
     state.tenants = DB.list();
+    buildShortcuts();
     renderSidebar();
     updateCounters();
     if (state.tenants.length) openTenant(nodeKey(state.tenants[0]));

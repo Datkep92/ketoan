@@ -21,7 +21,10 @@
   </div>
   <div class="app">
     <aside class="sidebar">
-      <div class="brand">KẾ TOÁN <small>dịch vụ</small></div>
+      <div class="brand">
+        <span class="brand-mark">KT</span>
+        <span class="brand-text">KẾ TOÁN <small>dịch vụ</small></span>
+      </div>
 
       <button id="btn-add-tenant" class="btn primary" type="button">+ Thêm công ty / HKD</button>
       <button id="btn-demo" class="btn ghost" type="button">Dữ liệu mẫu</button>
@@ -41,6 +44,8 @@
 
       <div class="list-title">Danh sách (<span id="tenant-count">0</span>)</div>
       <nav id="tenant-list" aria-label="Danh sách công ty"></nav>
+
+      <nav id="side-shortcuts" class="side-shortcuts" aria-label="Phân hệ"></nav>
 
       <div class="side-foot" id="side-foot">Dữ liệu lưu trên thiết bị</div>
     </aside>
