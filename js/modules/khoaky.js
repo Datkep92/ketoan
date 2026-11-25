@@ -119,7 +119,7 @@
     var form = section.querySelector('.kk-form');
     form.addEventListener('submit', function (e) {
       e.preventDefault();
-      if (H.isReadOnly()) { ctx.foot('Dữ liệu đang ở chế độ chỉ đọc.'); return; }
+      if (!H.guard(ctx, H.monthOf(H.today()) + '-01', 'Thêm số dư đầu kỳ')) return;
       var amount = H.roundMoney(Number(form.elements['amount'].value) || 0);
       if (!(amount > 0)) { ctx.foot('Nhập số tiền số dư.'); return; }
       var current = H.data(ctx.key, mod);
@@ -143,8 +143,8 @@
     var closeForm = section.querySelector('.kk-close-form');
     closeForm.addEventListener('submit', function (e) {
       e.preventDefault();
-      if (H.isReadOnly()) { ctx.foot('Dữ liệu đang ở chế độ chỉ đọc.'); return; }
       var f = e.currentTarget.elements;
+      if (!H.guard(ctx, f['date'] ? (f['date'].value || H.today()) : H.today(), 'Kết chuyển cuối kỳ')) return;
       var amount = H.roundMoney(Number(f['amount'].value) || 0);
       var from = String(f['from'].value || '');
       var to = String(f['to'].value || '');

@@ -156,6 +156,7 @@
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var f = e.currentTarget.elements;
+      if (!H.guard(ctx, f['date'].value || H.today(), 'Thêm phiếu bán')) return;
       var itemId = String(f['item'].value || '');
       var item = H.hangHoa(ctx.key).filter(function (it) { return it.id === itemId; })[0];
       if (!item) { ctx.foot('Hãy chọn hàng hóa để bán.'); return; }
@@ -263,6 +264,7 @@
     returnForm.addEventListener('submit', function (e) {
       e.preventDefault();
       var f = e.currentTarget.elements;
+      if (!H.guard(ctx, f['date'].value || H.today(), 'Trả hàng bán')) return;
       var current = H.data(ctx.key, mod);
       if (!Array.isArray(current.orders)) current.orders = [];
       var id = String(f['order'].value || '');

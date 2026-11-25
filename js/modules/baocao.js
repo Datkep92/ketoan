@@ -20,13 +20,13 @@
     '111': 'Tiền mặt', '112': 'Tiền gửi ngân hàng', '131': 'Phải thu khách hàng',
     '152': 'Hàng hóa', '211': 'Tài sản cố định', '214': 'Hao mòn tài sản',
     '229': 'Dự phòng công nợ', '331': 'Phải trả người bán', '334': 'Phải trả người lao động',
-    '338': 'Phải trả khác', '3331': 'Thuế GTGT đầu ra', '511': 'Doanh thu bán hàng',
+    '338': 'Phải trả khác', '3331': 'Thuế GTGT đầu ra', '1331': 'Thuế GTGT đầu vào', '511': 'Doanh thu bán hàng',
     '632': 'Giá vốn hàng bán', '641': 'Chi phí bán hàng', '642': 'Chi phí quản lý',
     '911': 'Kết chuyển kết quả', '3387': 'Phải thu khác'
   };
 
   function defaults() {
-    return { updatedAt: '' };
+    return { updatedAt: '', taxPayments: [] };
   }
 
   function mount() {
@@ -86,7 +86,11 @@
           '<div class="stat"><label>Thuế đầu ra</label><b data-report="thueDauRa">0 đ</b></div>' +
           '<div class="stat"><label>Thuế đầu vào</label><b data-report="thueDauVao">0 đ</b></div>' +
           '<div class="stat"><label>Thuế phải nộp</label><b data-report="thuePhaiNop">0 đ</b></div>' +
+          '<div class="stat"><label>Đã nộp kỳ này</label><b data-report="thueDaNop">0 đ</b></div>' +
+          '<div class="stat"><label>Còn phải nộp</label><b data-report="thueConNop">0 đ</b></div>' +
         '</div>' +
+        '<div class="report-actions"><button type="button" class="btn primary" data-tax-pay>Lập phiếu nộp thuế</button>' +
+          '<span class="muted">Phiếu nộp được ghi vào chứng từ và trừ vào số còn phải nộp của kỳ hiện tại.</span></div>' +
         '<p class="muted">Thuế đầu ra lấy từ hóa đơn bán, thuế đầu vào lấy từ hóa đơn mua hàng. Số âm được hiểu là thuế được khấu trừ chuyển kỳ sau.</p>' +
       '</div>' +
       '<div class="report-pane" data-report-pane="bctc" hidden>' +
@@ -123,6 +127,41 @@
     if (printBtn) printBtn.addEventListener('click', function () {
       try { global.print(); } catch (err) { ctx.foot('Trình duyệt không cho in; hãy dùng chức năng In của trình duyệt.'); }
     });
+    var payBtn = section.querySelector('[data-tax-pay]');
+    if (payBtn) payBtn.addEventListener('click', function () {
+      if (!H.guard(ctx, H.today(), 'Lập phiếu nộp thuế GTGT')) return;
+      var src = sourcesOf(ctx);
+      var bc = H.data(ctx.key, mod);
+      var ctData = H.data(ctx.key, K.modules.chungtu);
+      var ky = H.today().slice(0, 7);
+      var out = 0, inTax = 0;
+      (src.hd.invoices || []).forEach(function (inv) { out += Number(inv.taxAmount) || 0; });
+      (src.mh.bills || []).forEach(function (b) { inTax += Number(b.taxAmount) || 0; });
+      var paid = (Array.isArray(bc.taxPayments) ? bc.taxPayments : []).reduce(function (sum, p) {
+        return sum + (String(p.ky || '') === ky ? (Number(p.amount) || 0) : 0);
+      }, 0);
+      var due = H.roundMoney(Math.max(0, out - inTax - paid));
+      if (!(due > 0)) { ctx.foot('Kỳ này không còn thuế phải nộp.'); return; }
+      if (!Array.isArray(bc.taxPayments)) bc.taxPayments = [];
+      if (!Array.isArray(ctData.vouchers)) ctData.vouchers = [];
+      var voucher = {
+        id: H.uid('ct'), date: H.today(), kind: 'out', account: '3331',
+        amount: due, note: 'Nộp thuế GTGT kỳ ' + ky, ref: '', partner: '',
+        source: 'thue-nop', createdAt: new Date().toISOString()
+      };
+      ctData.vouchers.push(voucher);
+      bc.taxPayments.push({
+        id: H.uid('thue'), ky: ky, date: H.today(), amount: due,
+        voucherId: voucher.id, at: new Date().toISOString()
+      });
+      bc.updatedAt = new Date().toISOString();
+      ctData.updatedAt = new Date().toISOString();
+      if (!H.commit(ctx.key, [
+        { module: 'baocao', value: bc }, { module: 'chungtu', value: ctData }
+      ], ctx, 'Đã lập phiếu nộp thuế ' + H.money(due) + '.')) return;
+      ctx.sync('chungtu');
+      ctx.sync('baocao');
+    });
     show('tonghop');
   }
 
@@ -143,7 +182,8 @@
       dm: get('danhmuc', { items: [] }),
       dk: get('dinhkhoan', { entries: [] }),
       kk: get('khoaky', { openings: [] }),
-      accounts: H.accounts(ctx.key)
+      accounts: H.accounts(ctx.key),
+      taxPayments: get('baocao', { taxPayments: [] }).taxPayments || []
     };
   }
 
@@ -305,9 +345,15 @@
     put('cdktTaiSan', taiSan);
     put('cdktNo', no);
     put('cdktVon', taiSan - no);
+    var kyNow = H.today().slice(0, 7);
+    var daNop = H.roundMoney((src.taxPayments || []).reduce(function (sum, p) {
+      return sum + (String(p.ky || '') === kyNow ? (Number(p.amount) || 0) : 0);
+    }, 0));
     put('thueDauRa', dauRa);
     put('thueDauVao', dauVao);
     put('thuePhaiNop', dauRa - dauVao);
+    put('thueDaNop', daNop);
+    put('thueConNop', Math.max(0, H.roundMoney(dauRa - dauVao - daNop)));
 
     function reportLine(label, value, bold) {
       return '<tr' + (bold ? ' class="total"' : '') + '><td>' + H.esc(label) + '</td>' +
@@ -352,6 +398,7 @@
         var amt = Number(e.amount) || 0;
         var from = String(e.source || '');
         if (from === 'taisan-disposal' && isIn) flow.dauTu += amt;
+        else if (from === 'taisan-purchase' && isOut) flow.dauTu -= amt;
         else if (from.indexOf('banhang') === 0) flow.ban += isIn ? amt : -amt;
         else if (from.indexOf('muahang') === 0) flow.mua += isIn ? -amt : amt;
         else if (from.indexOf('luong') === 0 && isOut) flow.luong += amt;
@@ -389,6 +436,7 @@
       dk: src.dk.entries || [], kk: src.kk.openings || [],
       kkClose: src.kk.closings || [], provision: src.cn.provisions || [],
       payroll: src.cb.payrolls || [], disposal: src.ts.disposals || [],
+      tax: src.taxPayments || [],
       voucher: src.ct.vouchers || [], cash: src.cb.entries || []
     });
     if (ctx.pane.sigs['baocao.tonghop'] === s) return;

@@ -35,6 +35,7 @@
     { code: '229', name: 'Dự phòng phải thu khó đòi' },
     { code: '331', name: 'Phải trả người bán' },
     { code: '3331', name: 'Thuế GTGT đầu ra' },
+    { code: '1331', name: 'Thuế GTGT đầu vào' },
     { code: '334', name: 'Phải trả người lao động' },
     { code: '338', name: 'Phải trả BHXH, BHYT, BHTN' },
     { code: '511', name: 'Doanh thu bán hàng' },

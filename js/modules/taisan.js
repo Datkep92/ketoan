@@ -30,6 +30,7 @@
           '<input name="date" type="date" required>' +
           '<input name="cost" type="number" min="0" step="1000" placeholder="Nguyên giá">' +
           '<input name="years" type="number" min="1" step="1" placeholder="Số năm khấu hao">' +
+          '<select name="payment"><option value="cash">Trả tiền khi mua</option><option value="credit">Mua chịu (công nợ)</option></select>' +
           '<input name="note" placeholder="Ghi chú" maxlength="120">' +
           '<button class="btn primary" type="submit">Thêm tài sản</button>' +
         '</form>' +
@@ -143,12 +144,15 @@
       var cost = H.roundMoney(Number(f['cost'].value) || 0);
       var years = Number(f['years'].value) || 0;
       if (!name || !(cost > 0) || !(years > 0)) return;
+      var date = f['date'].value || H.today();
+      if (!H.guard(ctx, date, 'Thêm tài sản')) return;
       var current = H.data(ctx.key, mod);
       if (!Array.isArray(current.assets)) current.assets = [];
       current.assets.push({
         id: H.uid('ts'), name: name,
-        date: f['date'].value || H.today(),
+        date: date,
         cost: cost, years: years,
+        payment: f['payment'] && f['payment'].value === 'credit' ? 'credit' : 'cash',
         accumulated: 0, depreciation: [],
         note: String(f['note'].value || '').trim(),
         at: new Date().toISOString()
@@ -175,6 +179,8 @@
       if (!asset || asset.disposed) { ctx.foot('Hãy chọn tài sản còn đang dùng.'); return; }
       var months = Number(f['months'].value) || 0;
       if (!(months > 0)) return;
+      var depDate = f['date'].value || H.today();
+      if (!H.guard(ctx, depDate, 'Tính khấu hao')) return;
       var left = H.roundMoney((Number(asset.cost) || 0) - (Number(asset.accumulated) || 0));
       if (left <= 0) { ctx.foot('Tài sản đã khấu hao hết.'); return; }
       var monthly = H.roundMoney((Number(asset.cost) || 0) / ((Number(asset.years) || 1) * 12));
@@ -183,7 +189,7 @@
       if (!Array.isArray(asset.depreciation)) asset.depreciation = [];
       asset.depreciation.push({
         id: H.uid('kh'), months: months, amount: amount,
-        date: f['date'].value || H.today(), at: new Date().toISOString()
+        date: depDate, at: new Date().toISOString()
       });
       asset.accumulated = H.roundMoney((Number(asset.accumulated) || 0) + amount);
       current.updatedAt = new Date().toISOString();
@@ -208,6 +214,7 @@
       if (!asset || asset.disposed) { ctx.foot('Hãy chọn tài sản chưa thanh lý.'); return; }
       var left = H.roundMoney((Number(asset.cost) || 0) - (Number(asset.accumulated) || 0));
       var date = f['date'].value || H.today();
+      if (!H.guard(ctx, date, 'Thanh lý tài sản')) return;
       var disposal = {
         id: H.uid('tl'), assetId: asset.id, name: asset.name, date: date,
         cost: Number(asset.cost) || 0, accumulated: Number(asset.accumulated) || 0,

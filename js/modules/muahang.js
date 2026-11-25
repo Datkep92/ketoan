@@ -181,6 +181,7 @@
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var f = e.currentTarget.elements;
+      if (!H.guard(ctx, f['date'].value || H.today(), 'Thêm phiếu mua')) return;
       var supplierId = String(f['supplier'].value || '');
       var supplier = H.nhaCungCap(ctx.key).filter(function (s) { return s.id === supplierId; })[0];
       if (!supplier) { ctx.foot('Hãy chọn nhà cung cấp.'); return; }
@@ -269,6 +270,7 @@
     billForm.addEventListener('submit', function (e) {
       e.preventDefault();
       var f = e.currentTarget.elements;
+      if (!H.guard(ctx, f['date'].value || H.today(), 'Lập hóa đơn đầu vào')) return;
       var current = H.data(ctx.key, mod);
       if (!Array.isArray(current.bills)) current.bills = [];
       var purchaseId = String(f['purchase'].value || '');
@@ -309,8 +311,9 @@
     returnForm.elements['date'].value = H.today();
     returnForm.addEventListener('submit', function (e) {
       e.preventDefault();
-      if (H.isReadOnly()) { ctx.foot('Dữ liệu đang ở chế độ chỉ đọc.'); return; }
       var f = e.currentTarget.elements;
+      var returnDate = f['date'] ? (f['date'].value || H.today()) : H.today();
+      if (!H.guard(ctx, returnDate, 'Trả hàng mua')) return;
       var current = H.data(ctx.key, mod);
       if (!Array.isArray(current.purchases)) current.purchases = [];
       var id = String(f['purchase'].value || '');

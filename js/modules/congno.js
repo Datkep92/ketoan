@@ -17,6 +17,7 @@
         '<input name="partner" placeholder="Đối tượng" required maxlength="120">' +
         '<input name="amount" type="number" min="0" step="1000" placeholder="Phát sinh">' +
         '<input name="paid" type="number" min="0" step="1000" placeholder="Đã thu / trả">' +
+        '<input name="date" type="date" required>' +
         '<input name="due" type="date" placeholder="Hạn">' +
         '<button class="btn primary" type="submit">Thêm</button>' +
       '</form>' +
@@ -97,18 +98,21 @@
 
   function bind(ctx, section) {
     var form = section.querySelector('.cn-form');
+    form.elements['date'].value = H.today();
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var f = e.currentTarget.elements;
       var partner = String(f['partner'].value || '').trim();
       var amount = Number(f['amount'].value);
       if (!partner || !(amount > 0)) return;
+      var date = f['date'].value || H.today();
+      if (!H.guard(ctx, date, 'Thêm công nợ')) return;
       var current = H.data(ctx.key, mod);
       if (!Array.isArray(current.records)) current.records = [];
       current.records.push({
         id: H.uid('cn'),
         type: f['type'].value === 'phaiTra' ? 'phaiTra' : 'phaiThu',
-        partner: partner,
+        partner: partner, date: date,
         amount: amount,
         paid: Number(f['paid'].value) || 0,
         due: f['due'].value || '',
@@ -118,7 +122,9 @@
       var saved = H.save(ctx.key, mod, current);
       if (!saved) { ctx.foot('Dữ liệu đang ở chế độ chỉ đọc, chưa lưu được công nợ.'); return; }
       e.currentTarget.reset();
+      form.elements['date'].value = H.today();
       patch(ctx, section, current, false);
+      ctx.sync('baocao');
     });
 
     var provisionForm = section.querySelector('.cn-provision-form');
@@ -128,10 +134,12 @@
       var f = e.currentTarget.elements;
       var amount = H.roundMoney(Number(f['amount'].value) || 0);
       if (!(amount > 0)) { ctx.foot('Nhập số tiền dự phòng.'); return; }
+      var ky = f['ky'].value || H.monthOf(H.today());
+      if (!H.guard(ctx, ky + '-01', 'Trích dự phòng công nợ')) return;
       var current = H.data(ctx.key, mod);
       if (!Array.isArray(current.provisions)) current.provisions = [];
       current.provisions.push({
-        id: H.uid('dp'), ky: f['ky'].value || H.monthOf(H.today()), amount: amount,
+        id: H.uid('dp'), ky: ky, amount: amount,
         note: String(f['note'].value || '').trim(), at: new Date().toISOString()
       });
       current.updatedAt = new Date().toISOString();

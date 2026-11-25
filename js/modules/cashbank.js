@@ -129,6 +129,7 @@
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var f = e.currentTarget.elements;
+      if (!H.guard(ctx, f['date'].value || H.today(), 'Thêm phiếu quỹ')) return;
       var amount = H.roundMoney(Number(f['amount'].value) || 0);
       if (!(amount > 0)) return;
       var type = f['type'].value === 'out' ? 'out' : 'in';
@@ -170,8 +171,8 @@
     payrollForm.elements['date'].value = H.today();
     payrollForm.addEventListener('submit', function (e) {
       e.preventDefault();
-      if (H.isReadOnly()) { ctx.foot('Dữ liệu đang ở chế độ chỉ đọc.'); return; }
       var f = e.currentTarget.elements;
+      if (!H.guard(ctx, f['date'].value || H.today(), 'Lập bảng lương')) return;
       var gross = H.roundMoney(Number(f['gross'].value) || 0);
       if (!(gross > 0)) { ctx.foot('Nhập tổng lương.'); return; }
       var rate = Number(f['rate'].value) || 0;

@@ -57,8 +57,8 @@
 ## Kiểm tra
 - Chạy server cục bộ, mở trình duyệt: thêm công ty có MST, thêm hàng trong kho, bán hàng, phát hành hóa đơn, rồi sang công ty khác và quay lại.
 - Kỳ vọng: bộ đếm “Cập nhật phần” tăng, “Render toàn bộ” đứng yên khi thêm dữ liệu và khi chuyển công ty cũ hoặc chuyển tab.
-- Kiểm cú pháp từng tệp: `node --check db.js`, `node --check js/core.js`, `node --check js/modules/*.js`, `node --check js/demo.js`, `node --check app.js`.
+- Kiểm cú pháp 20 tệp (lõi, mười bốn phần, dữ liệu mẫu và hai tập lệnh kiểm): biên dịch từng tệp bằng `new vm.Script(...)` trong một lệnh `node.real --jitless -e`.
 - Kiểm dữ liệu mẫu: `node Scripts/check-demo.js` — 27 dòng PASS (20 ca cũ giữ nguyên, thêm 7 ca cho nghiệp vụ mới).
 - Kiểm logic không cần trình duyệt: `node Scripts/check-logic.js`.
-  Kỳ vọng 142 dòng PASS: giữ nguyên 125 ca cũ, thêm 17 ca cho giá vốn, lương, dự phòng, trả mua, thanh lý, kết chuyển và B03.
-- Trên thiết bị này `node --check` bị Bus error; muốn kiểm cú pháp thì biên dịch từng tệp bằng `new vm.Script(...)` trong một lệnh `node.real --jitless -e`.
+  Kỳ vọng 149 dòng PASS: giữ nguyên 125 ca cũ, thêm 17 ca nghiệp vụ TT133 và 7 ca mới cho hóa đơn thu tiền, khóa kỳ với chứng từ, bút toán thuế/phải thu/tài sản, nộp thuế GTGT.
+- Trên thiết bị này `node --check` bị Bus error; dùng `node.real --jitless` như trên.

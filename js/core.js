@@ -246,6 +246,7 @@
     var out = [];
     var ct = src.ct || {}, bh = src.bh || {}, mh = src.mh || {}, ts = src.ts || {};
     var dk = src.dk || {}, cb = src.cb || {}, cn = src.cn || {}, kk = src.kk || {};
+    var hd = src.hd || {};
     (ct.vouchers || []).forEach(function (v) {
       var amount = Number(v.amount) || 0;
       if (!(amount > 0)) return;
@@ -256,6 +257,7 @@
       if (!other) {
         if (from.indexOf('luong-insurance') === 0) other = '338';
         else if (from.indexOf('luong') === 0) other = '334';
+        else if (from.indexOf('hdon-paid') === 0) other = '131';
         else if (from.indexOf('banhang-return') === 0) other = '511';
         else if (from.indexOf('muahang') === 0) other = '331';
         else if (v.kind === 'in') other = /thu/i.test(v.note || '') ? '3387' : '511';
@@ -276,16 +278,36 @@
         if (back > 0) addEntry(out, r.date || o.date, 'Hoàn giá vốn ' + (o.ma || o.id), '152', '632', back, 'banhang-return-cogs');
       });
     });
+    (hd.invoices || []).forEach(function (inv) {
+      var tax = roundMoney(Number(inv.taxAmount) || 0);
+      if (tax > 0) addEntry(out, inv.date, 'Thuế GTGT đầu ra HĐ ' + (inv.so || ''), '131', '3331', tax, 'hdon-vat');
+      if (!inv.saleId) {
+        var amount = roundMoney(Number(inv.amount) || 0);
+        if (amount > 0) addEntry(out, inv.date, 'Doanh thu HĐ ' + (inv.so || ''), '131', '511', amount, 'hdon');
+      }
+    });
     (mh.purchases || []).forEach(function (p) {
-      var total = Number(p.total) || 0;
-      if (total > 0) addEntry(out, p.date, 'Mua hàng ' + (p.ma || p.id), '152', '331', total, 'muahang');
+      var total = roundMoney(Number(p.total) || 0);
+      var tax = roundMoney(Number(p.taxAmount) || 0);
+      var goods = roundMoney(total - tax);
+      if (goods > 0) addEntry(out, p.date, 'Mua hàng ' + (p.ma || p.id), '152', '331', goods, 'muahang');
+      if (tax > 0) addEntry(out, p.date, 'Thuế GTGT đầu vào ' + (p.ma || p.id), '1331', '331', tax, 'muahang-vat');
       (p.returns || []).forEach(function (r) {
         if (Number(r.total) > 0) addEntry(out, r.date || p.date, 'Trả hàng mua ' + (p.ma || p.id), '331', '152', r.total, 'muahang-return');
       });
     });
-    var dep = 0;
-    (ts.assets || []).forEach(function (a) { if (!a.disposed) dep += Number(a.accumulated) || 0; });
-    if (dep > 0) addEntry(out, '', 'Khấu hao tài sản', '642', '214', roundMoney(dep), 'taisan');
+    (ts.assets || []).forEach(function (a) {
+      var cost = roundMoney(Number(a.cost) || 0);
+      if (cost > 0) {
+        var pay = String(a.payment || '') === 'credit' ? '331' : '111';
+        addEntry(out, a.date, 'Mua tài sản ' + (a.name || ''), '211', pay, cost, 'taisan-purchase');
+      }
+      if (a.disposed) return;
+      (a.depreciation || []).forEach(function (d) {
+        var amount = roundMoney(Number(d.amount) || 0);
+        if (amount > 0) addEntry(out, d.date || a.date, 'Khấu hao ' + (a.name || ''), '642', '214', amount, 'taisan');
+      });
+    });
     (ts.disposals || []).forEach(function (d) {
       var cost = roundMoney(Number(d.cost) || 0);
       var acc = roundMoney(Number(d.accumulated) || 0);
@@ -309,6 +331,13 @@
     });
     (cn.provisions || []).forEach(function (p) {
       if (Number(p.amount) > 0) addEntry(out, p.date || (p.ky ? p.ky + '-01' : ''), 'Dự phòng công nợ kỳ ' + (p.ky || ''), '642', '229', p.amount, 'duphong');
+    });
+    (cn.records || []).forEach(function (r) {
+      if (r.source) return;
+      var amount = roundMoney(Number(r.amount) || 0);
+      if (!(amount > 0)) return;
+      if (r.type === 'phaiTra') addEntry(out, r.date, 'Phải trả ' + (r.partner || ''), '642', '331', amount, 'congno');
+      else addEntry(out, r.date, 'Phải thu ' + (r.partner || ''), '131', '3387', amount, 'congno');
     });
     (dk.entries || []).forEach(function (v) { linesToEntries(out, v, 'dinhkhoan'); });
     (kk.closings || []).forEach(function (v) { linesToEntries(out, v, 'khoaky-close'); });

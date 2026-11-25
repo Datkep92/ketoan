@@ -59,3 +59,10 @@
 - Kiểm chứng bằng lệnh: 20 tệp JavaScript biên dịch sạch; `node Scripts/check-logic.js` — 142/142 PASS (125 ca cũ giữ nguyên); `node Scripts/check-demo.js` — 27/27 PASS (20 ca cũ giữ nguyên). Chạy bằng `node.real --jitless` vì trình bao bọc `node` trên thiết bị hỏng.
 - Chưa kiểm chứng bằng mắt trên trình duyệt thiết bị: tự mở `http://127.0.0.1:8899/index.html`, bấm “Dữ liệu mẫu”, thử giá vốn, lương, dự phòng, trả mua, thanh lý, kết chuyển và tab B03.
 - Chưa phát hành công khai: chỉ làm sau khi người dùng nghiệm thu và xác nhận riêng.
+
+## Bổ sung (khóa nghiệp vụ và bút toán trước phát hành)
+- Nhiệm vụ: xử lý cảm giác “vẫn thiếu chức năng / logic / tác vụ” trước khi nghiệm thu mà không thêm phần hay tab mới.
+- Đã xong: mọi đường thêm/sửa/xóa nghiệp vụ đều đi chung một cơ chế chặn kỳ khóa và chế độ chỉ đọc; hóa đơn có tiền thu đã ghi thêm phiếu thu và bút toán thuế đầu ra; hóa đơn tự nhập lên nhật ký chung; mua tài sản ghi bút toán Nợ tài sản / Có tiền hoặc phải trả; khấu hao có ngày riêng; công nợ thêm tay có ngày và bút toán; thuế đầu vào/đầu ra có tài khoản 1331/3331 và có tác vụ lập phiếu nộp thuế GTGT, không nộp trùng kỳ.
+- Kiểm chứng bằng lệnh: 20 tệp JavaScript biên dịch sạch; `node Scripts/check-logic.js` — 149/149 PASS (125 ca cũ, 17 ca TT133 và 7 ca mới); `node Scripts/check-demo.js` — 27/27 PASS; `git diff --check` sạch. Chạy bằng `node.real --jitless`.
+- Chưa kiểm chứng bằng mắt trên trình duyệt thiết bị: tự mở `http://127.0.0.1:8899/index.html`, bấm “Dữ liệu mẫu”, thử phát hành hóa đơn có thu tiền, mua tài sản, khóa kỳ rồi thêm chứng từ, và bấm “Lập phiếu nộp thuế” trên tab Thuế GTGT.
+- Chưa phát hành công khai: chỉ làm sau khi người dùng nghiệm thu và xác nhận riêng.

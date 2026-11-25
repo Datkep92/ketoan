@@ -336,6 +336,8 @@ hdForm.fire('submit');
 assert(branchOf('hoadon').invoices.length === 1, 'hóa đơn -> lưu đúng một hóa đơn');
 assert(branchOf('hoadon').invoices[0].so === 'HD/26-001', 'hóa đơn -> số tự tạo theo ký hiệu thiết lập');
 assert(branchOf('hoadon').invoices[0].total === 540000, 'hóa đơn -> tính đúng tiền thuế và tổng');
+assert(branchOf('chungtu').vouchers.some(v => v.source === 'hdon-paid' && v.amount === 100000 &&
+  v.linkId === branchOf('hoadon').invoices[0].id), 'hóa đơn có tiền thu -> ghi thêm phiếu thu');
 assert(hdSec.querySelector('[data-hd="total"]').textContent.replace(/\D/g, '') === '540000',
   'hóa đơn -> tổng thanh toán cập nhật');
 assert(bcSec.querySelector('[data-report="hoaDon"]').textContent.replace(/\D/g, '') === '540000',
@@ -360,7 +362,8 @@ assert(branchOf('muahang').purchases.length === 1, 'mua hàng -> lưu đúng m�
 assert(stockOf()[itemId] === 18, 'mua hàng -> cộng đúng tồn kho');
 assert(mhSec.querySelector('[data-mh="amount"]').textContent.replace(/\D/g, '') === '330000',
   'mua hàng -> tổng tiền gồm thuế cập nhật');
-assert(branchOf('chungtu').vouchers.length === 3 && branchOf('chungtu').vouchers[2].amount === 110000,
+assert(branchOf('chungtu').vouchers.length === 4 &&
+  branchOf('chungtu').vouchers.some(v => v.kind === 'out' && v.amount === 110000),
   'mua hàng -> tiền đã trả thành chứng từ chi');
 assert(branchOf('congno').records.length === 3 && branchOf('congno').records[2].type === 'phaiTra' &&
   branchOf('congno').records[2].amount === 220000, 'mua hàng -> phần chưa trả thành khoản phải trả');
@@ -384,8 +387,8 @@ cbForm.fire('submit');
 assert(branchOf('cashbank').entries.length === 1, 'quỹ -> lưu đúng một phiếu thu');
 assert(cbSec.querySelector('[data-cb="balance"]').textContent.replace(/\D/g, '') === '500000',
   'quỹ -> số dư tính đúng');
-assert(branchOf('chungtu').vouchers.length === 4, 'quỹ -> đồng thời ghi chứng từ');
-assert(bcSec.querySelector('[data-report="cash"]').textContent.replace(/\D/g, '') === '1690000',
+assert(branchOf('chungtu').vouchers.length === 5, 'quỹ -> đồng thời ghi chứng từ');
+assert(bcSec.querySelector('[data-report="cash"]').textContent.replace(/\D/g, '') === '1790000',
   'báo cáo -> tiền còn cập nhật theo phiếu quỹ');
 
 tabOf(paneA, 'taisan').fire('click');
@@ -444,13 +447,14 @@ assert(ctForm2.elements['link'] && String(ctForm2.elements['link']._html).indexO
   'chứng từ -> danh sách công nợ được cập nhật');
 fill(ctForm2, { date: '2026-11-28', note: 'Thu khách B', account: '111', kind: 'in', amount: '200000', link: linked.id });
 ctForm2.fire('submit');
-assert(branchOf('chungtu').vouchers.length === 6 && branchOf('chungtu').vouchers[5].linkId === linked.id,
+assert(branchOf('chungtu').vouchers.length === 7 &&
+  branchOf('chungtu').vouchers[6].linkId === linked.id,
   'nối chứng từ -> phiếu ghi đúng khoản công nợ');
 assert(branchOf('congno').records.filter(r => r.id === linked.id)[0].paid === 200000,
   'nối phiếu thu -> tăng số đã thu của khoản công nợ');
 assert(branchOf('congno').records.filter(r => r.id === linked.id)[0].voucherIds.length === 1,
   'nối chứng từ -> khoản công nợ giữ mã phiếu');
-const linkedRow = ctSec2.querySelector('.vtable tbody').children[5];
+const linkedRow = ctSec2.querySelector('.vtable tbody').children[6];
 assert(linkedRow && linkedRow.children[4].textContent === 'Khách B',
   'nối chứng từ -> bảng hiện tên khoản công nợ');
 
@@ -547,6 +551,11 @@ fill(dkForm, { date: '2026-11-30', note: 'Bút toán sau khi khóa' });
 setDkLines(dkSec, '111', '131', 100000);
 dkForm.fire('submit');
 assert(branchOf('dinhkhoan').entries.length === 1, 'kỳ đã khóa -> từ chối thêm định khoản');
+const ctCountBeforeLock = branchOf('chungtu').vouchers.length;
+tabOf(paneA, 'chungtu').fire('click');
+fill(ctForm2, { date: '2026-11-30', note: 'Phiếu sau khi khóa', account: '111', kind: 'in', amount: '50000' });
+ctForm2.fire('submit');
+assert(branchOf('chungtu').vouchers.length === ctCountBeforeLock, 'kỳ đã khóa -> từ chối thêm chứng từ');
 tabOf(paneA, 'khoaky').fire('click');
 kkSec.querySelector('[data-kk-act="unlock"]').fire('click');
 assert(!branchOf('khoaky').lockedUntil, 'mở kỳ -> kỳ trở lại trạng thái đang mở');
@@ -629,6 +638,13 @@ const wanted = ['banhang-cogs', 'banhang-return-cogs', 'muahang-return', 'taisan
   'luong-accrual', 'duphong', 'khoaky-close'];
 assert(wanted.every(s => allSources.some(e => e.source === s)),
   'nhật ký chung -> ghi nhận đủ bảy nghiệp vụ bổ sung');
+const has = (src, debit, credit) => allSources.some(e => e.source === src && e.debit === debit && e.credit === credit && e.amount > 0);
+assert(has('hdon-vat', '131', '3331') && has('hdon-paid', '111', '131'),
+  'nhật ký chung -> hóa đơn ghi thuế đầu ra và thu tiền đúng tài khoản');
+assert(has('muahang-vat', '1331', '331') && has('taisan-purchase', '211', '111'),
+  'nhật ký chung -> thuế đầu vào và mua tài sản lên sổ cái');
+assert(allSources.some(e => e.source === 'congno' && e.debit === '131'),
+  'nhật ký chung -> khoản công nợ thêm tay có bút toán');
 assert(allSources.every(e => e.debit && e.credit && Number(e.amount) > 0),
   'nhật ký chung -> mọi bút toán đều có tài khoản và số tiền hợp lệ');
 
@@ -639,3 +655,12 @@ assert(b02Html.indexOf('Giá vốn hàng bán') >= 0, 'B02 -> có riêng dòng g
 const b03Html = String(bcSec.querySelector('[data-report-body="b03"]')._html);
 assert(b03Html.indexOf('Tiền thu thanh lý tài sản') >= 0 && b03Html.indexOf('Tăng / giảm tiền trong kỳ') >= 0,
   'B03 -> có báo cáo lưu chuyển tiền tệ');
+
+const taxPayBtn = bcSec.querySelector('[data-tax-pay]');
+taxPayBtn.fire('click');
+assert(branchOf('baocao').taxPayments.length === 1 && branchOf('baocao').taxPayments[0].amount === 20000 &&
+  branchOf('chungtu').vouchers.some(v => v.source === 'thue-nop' && v.amount === 20000),
+  'thuế GTGT -> lập được phiếu nộp và chứng từ chi');
+taxPayBtn.fire('click');
+assert(branchOf('baocao').taxPayments.length === 1 && ids['side-foot'].textContent.indexOf('không còn thuế') >= 0,
+  'thuế GTGT -> không nộp trùng cùng kỳ');

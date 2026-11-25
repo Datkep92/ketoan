@@ -102,6 +102,7 @@
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var f = e.currentTarget.elements;
+      if (!H.guard(ctx, f['date'].value || H.today(), 'Lập hóa đơn')) return;
       var current = H.data(ctx.key, mod);
       if (!Array.isArray(current.invoices)) current.invoices = [];
       var saleId = String(f['sale'].value || '');
@@ -120,7 +121,7 @@
         return;
       }
       var so = typed || makeSo(current.invoices, ctx.key);
-      current.invoices.push({
+      var inv = {
         id: H.uid('hd'), so: so,
         date: f['date'].value || H.today(),
         customer: customer,
@@ -132,16 +133,30 @@
         paid: paid,
         note: String(f['note'].value || '').trim(),
         at: new Date().toISOString()
-      });
+      };
+      current.invoices.push(inv);
       current.updatedAt = new Date().toISOString();
-      var saved = H.save(ctx.key, mod, current);
-      if (!saved) { ctx.foot('Dữ liệu đang ở chế độ chỉ đọc, chưa lưu được hóa đơn.'); return; }
+      var writes = [{ module: 'hoadon', value: current }];
+      var ctMod = K.modules.chungtu;
+      if (paid > 0 && ctMod) {
+        var ctStore = H.data(ctx.key, ctMod);
+        if (!Array.isArray(ctStore.vouchers)) ctStore.vouchers = [];
+        ctStore.rev = (ctStore.rev || 0) + 1;
+        ctStore.vouchers.push({
+          id: H.uid('v'), date: inv.date, note: 'Thu hóa đơn ' + so,
+          account: '111', kind: 'in', amount: paid,
+          linkId: inv.id, source: 'hdon-paid', at: new Date().toISOString()
+        });
+        ctStore.updatedAt = new Date().toISOString();
+        writes.push({ module: 'chungtu', value: ctStore });
+      }
+      if (!H.commit(ctx.key, writes, ctx, 'Đã lưu hóa đơn ' + so + '.')) return;
 
       e.currentTarget.reset();
       form.elements['date'].value = H.today();
       patch(ctx, section, current, false);
       ctx.sync('baocao');
-      ctx.foot('Đã lưu hóa đơn ' + so + '.');
+      if (paid > 0) ctx.sync('chungtu');
     });
   }
 

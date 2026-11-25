@@ -85,6 +85,7 @@
       var f = e.currentTarget.elements;
       var name = String(f['name'].value || '').trim();
       if (!name) return;
+      if (!H.guard(ctx, H.today(), 'Thêm hàng hóa')) return;
       var dmMod = K.modules.danhmuc;
       if (!dmMod) return;
       var dm = H.data(ctx.key, dmMod);
@@ -126,6 +127,7 @@
       if (!items.some(function (it) { return it.id === itemId; })) { ctx.foot('Hãy chọn hàng hóa cần điều chỉnh.'); return; }
       var qty = Number(f['qty'].value) || 0;
       if (!(qty > 0)) return;
+      if (!H.guard(ctx, H.today(), 'Điều chỉnh tồn kho')) return;
       var type = f['type'].value === 'xuat' ? 'xuat' : 'nhap';
       var current = H.data(ctx.key, mod);
       if (!current.stock || typeof current.stock !== 'object' || Array.isArray(current.stock)) current.stock = {};

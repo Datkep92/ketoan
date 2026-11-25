@@ -134,6 +134,7 @@
         linkId: linkEl ? linkEl.value : ''
       };
       if (!voucher.note || !voucher.date || !(voucher.amount > 0)) return;
+      if (!H.guard(ctx, voucher.date, 'Thêm chứng từ')) return;
       var current = H.data(ctx.key, mod);
       current.rev = (current.rev || 0) + 1;
       current.vouchers.push(voucher);
